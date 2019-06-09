@@ -52,9 +52,6 @@
  * running the ASF driver selector tool. Any changes will be discarded.
  */
 
-// From module: ADC - Analog to Digital Converter
-//#include <adc.h>
-
 // From module: CPU specific features
 #include <mega_reset_cause.h>
 
