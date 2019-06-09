@@ -7,6 +7,7 @@
 
 /* CONFIG SECTION */
 #define ADC_READ_PERIOD_MS 1000
+#define ADC_SENSOR_NUMBER 6
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
@@ -17,12 +18,8 @@
 /* TYPE DEFINITIONS */
 typedef struct
 {
-	uint16_t value_0;
-	uint16_t value_1;
-	uint16_t value_2;
-	uint16_t value_3;
-	uint16_t value_4;
-	uint16_t value_5;
+	uint16_t adc_values[ADC_SENSOR_NUMBER];
+	uint8_t temperatures[ADC_SENSOR_NUMBER];
 } sensor_values_t;
 
 /* GLOBAL VARIABLES */
@@ -33,7 +30,8 @@ void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 void interrupt_init(void);
 void adc_init(void);
 uint16_t adc_read(uint8_t ADCchannel);
-void read_sensor_values(sensor_values_t * sensor_values);
+void read_sensors(sensor_values_t * sensor_values);
+uint8_t get_temperature(uint16_t adc_value);
 void generate_driving_pulse(uint8_t fan_number, uint8_t fan_power);
 
 /* FUNCTION DEFINITIONS */
@@ -87,20 +85,25 @@ uint16_t adc_read(uint8_t ADCchannel)
 	return ADC;
 }
 
-void read_sensor_values(sensor_values_t * sensor_values)
+void read_sensors(sensor_values_t * sensor_values)
 {
-	sensor_values->value_0 = adc_read(0);
-	sensor_values->value_1 = adc_read(1);
-	sensor_values->value_2 = adc_read(2);
-	sensor_values->value_3 = adc_read(3);
-	sensor_values->value_4 = adc_read(4);
-	sensor_values->value_5 = adc_read(5);
+	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
+	{
+		sensor_values->adc_values[i] = adc_read(i);
+		sensor_values->temperatures[i] = get_temperature(sensor_values->adc_values[i]);
+	}
+}
+
+uint8_t get_temperature(uint16_t adc_value)
+{
+	// it's a mock formula
+	return adc_value/10;
 }
 
 void generate_driving_pulse(uint8_t fan_number, uint8_t fan_power)
 {
 	// it's a mock, for indication
-	led_blink(3, 300);
+	led_blink(1, 200);
 }
 
 int main (void)
@@ -110,12 +113,11 @@ int main (void)
 	interrupt_init();
 	adc_init();
 	sensor_values_t sensor_values;
-	
-	led_blink(5, 300);
+	led_blink(3, 300);
 	
 	while(1)
 	{	
- 		read_sensor_values(&sensor_values);
+ 		read_sensors(&sensor_values);
 		delay_ms(ADC_READ_PERIOD_MS);
 	}
 }
