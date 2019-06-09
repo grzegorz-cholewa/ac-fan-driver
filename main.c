@@ -103,6 +103,7 @@ int main (void)
 	
 	led_blink(5, 300);
 	
+	
 	while(1)
 	{
 		if (zero_crossing_read())
