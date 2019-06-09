@@ -3,12 +3,25 @@
 #include <asf.h>
 #define F_CPU 8000000UL
 
-/* GLOBAL VARIABLES */
+/* TYPE DEFINITIONS */
+typedef struct
+{
+	uint16_t value_0;
+	uint16_t value_1;
+	uint16_t value_2;
+	uint16_t value_3;
+	uint16_t value_4;
+	uint16_t value_5;
+} sensor_values_t;
 
+/* GLOBAL VARIABLES */
 
 /* FUNCTION PROTOTYPES */
 
 void led_blink(uint8_t count, uint32_t wait_time_ms);
+void adc_init(void);
+uint16_t adc_read(uint8_t ADCchannel);
+void read_sensor_values(sensor_values_t * sensor_values);
 
 /* FUNCTION DEFINITIONS */
 
@@ -23,7 +36,7 @@ void led_blink(uint8_t count, uint32_t wait_time_ms)
 	}
 }
 
-void adc_init()
+void adc_init(void)
 {
 	// Select Vref=AVcc
 	ADMUX |= (1<<REFS0); // AVCC with external cap at AREF pin
@@ -44,6 +57,16 @@ uint16_t adc_read(uint8_t ADCchannel)
 	return ADC;
 }
 
+void read_sensor_values(sensor_values_t * sensor_values)
+{
+	sensor_values->value_0 = adc_read(0);
+	sensor_values->value_1 = adc_read(1);
+	sensor_values->value_2 = adc_read(2);
+	sensor_values->value_3 = adc_read(3);
+	sensor_values->value_4 = adc_read(4);
+	sensor_values->value_5 = adc_read(5);
+}
+
 int main (void)
 {
 	/* set board io port */
@@ -53,21 +76,11 @@ int main (void)
 	
 	led_blink(5, 100);
 	
-	uint16_t result0 = 0;
-	uint16_t result1 = 0;
-	uint16_t result2 = 0;
-	uint16_t result3 = 0;
-	uint16_t result4 = 0;
-	uint16_t result5 = 0;
-	
+	sensor_values_t sensor_values;
+
 	while(1)
 	{
-		result0 = adc_read(0);
-		result1 = adc_read(1);
-		result2 = adc_read(2);
-		result3 = adc_read(3);
-		result4 = adc_read(4);
-		result5 = adc_read(5);
+		read_sensor_values(&sensor_values);
 	}
 	
 }
