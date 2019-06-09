@@ -1,5 +1,5 @@
 /* AC FAN DRIVER */
-/* The driver is based on ATMega328 and the purpose is to drive AC regulator circuit for 2 AC fans
+/* The driver is based on ATMega328 and the purpose is to drive AC regulator circuit for 2 AC fans */
 /* according to readings from zero-crossing detection input and ADC voltages from 6 thermistors */
 
 #include <asf.h>
@@ -8,8 +8,8 @@
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTB, 0)
-#define FAN1_DRIVE_SIG_PIN IOPORT_CREATE_PIN(PORTB, 1)
-#define FAN2_DRIVE_SIG_PIN IOPORT_CREATE_PIN(PORTB, 2)
+#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 1)
+#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 2)
 
 /* TYPE DEFINITIONS */
 typedef struct
@@ -26,9 +26,10 @@ typedef struct
 
 /* FUNCTION PROTOTYPES */
 void gpio_init(void);
-void led_blink(uint8_t count, uint32_t wait_time_ms);
+void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 void adc_init(void);
 uint16_t adc_read(uint8_t ADCchannel);
+bool zero_crossing_read(void);
 void read_sensor_values(sensor_values_t * sensor_values);
 
 /* FUNCTION DEFINITIONS */
@@ -38,18 +39,19 @@ void gpio_init(void)
 	ioport_configure_pin(GPIO_PUSH_BUTTON_0, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
 
 	ioport_configure_pin(ZERO_CROSSING_PIN, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
-	ioport_configure_pin(FAN1_DRIVE_SIG_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
-	ioport_configure_pin(FAN2_DRIVE_SIG_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);	
+	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
+	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);	
 }
 
-void led_blink(uint8_t count, uint32_t wait_time_ms)
+void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 {
-	for (int i = count; i--; i > 0)
+	while (blink_count > 0)
 	{
 		LED_On(LED_PIN);
-		delay_ms(wait_time_ms);
+		delay_ms(on_off_cycle_period_ms/2);
 		LED_Off(LED_PIN);
-		delay_ms(wait_time_ms);
+		delay_ms(on_off_cycle_period_ms/2);
+		blink_count--;
 	}
 }
 
@@ -74,6 +76,11 @@ uint16_t adc_read(uint8_t ADCchannel)
 	return ADC;
 }
 
+bool zero_crossing_read(void)
+{
+	return ioport_get_pin_level(ZERO_CROSSING_PIN);
+}
+
 void read_sensor_values(sensor_values_t * sensor_values)
 {
 	sensor_values->value_0 = adc_read(0);
@@ -89,13 +96,13 @@ int main (void)
 	gpio_init();
 	delay_init();
 	adc_init();
-	
-	led_blink(5, 100);
-	
 	sensor_values_t sensor_values;
-
+	
+	led_blink(3, 1000);
 	while(1)
 	{
+		if (zero_crossing_read())
+			led_blink(1, 500);
 		read_sensor_values(&sensor_values);
 	}
 	
