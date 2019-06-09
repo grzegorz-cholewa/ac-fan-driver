@@ -5,14 +5,14 @@
 #include <asf.h>
 #define F_CPU 8000000UL
 
-/* APP CONFIG */
+/* CONFIG SECTION */
 #define ADC_READ_PERIOD_MS 1000
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
-#define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTB, 0)
-#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 1)
-#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 2)
+#define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // that pin is always a source for INT0 interrupt
+#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0)
+#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1)
 
 /* TYPE DEFINITIONS */
 typedef struct
@@ -30,10 +30,11 @@ typedef struct
 /* FUNCTION PROTOTYPES */
 void gpio_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
+void interrupt_init(void);
 void adc_init(void);
 uint16_t adc_read(uint8_t ADCchannel);
-bool zero_crossing_read(void);
 void read_sensor_values(sensor_values_t * sensor_values);
+void generate_driving_pulse(uint8_t fan_number, uint8_t fan_power);
 
 /* FUNCTION DEFINITIONS */
 void gpio_init(void)
@@ -58,6 +59,13 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
+void interrupt_init(void)
+{
+	    EICRA |= (1 << ISC01);    // set INT0 to trigger on falling edge
+	    EIMSK |= (1 << INT0);     // activates INT0
+	    sei();                    // turn on interrupts
+}
+
 void adc_init(void)
 {
 	// Select Vref=AVcc
@@ -79,11 +87,6 @@ uint16_t adc_read(uint8_t ADCchannel)
 	return ADC;
 }
 
-bool zero_crossing_read(void)
-{
-	return ioport_get_pin_level(ZERO_CROSSING_PIN);
-}
-
 void read_sensor_values(sensor_values_t * sensor_values)
 {
 	sensor_values->value_0 = adc_read(0);
@@ -94,23 +97,31 @@ void read_sensor_values(sensor_values_t * sensor_values)
 	sensor_values->value_5 = adc_read(5);
 }
 
+void generate_driving_pulse(uint8_t fan_number, uint8_t fan_power)
+{
+	// it's a mock, for indication
+	led_blink(3, 300);
+}
+
 int main (void)
 {
 	gpio_init();
 	delay_init();
+	interrupt_init();
 	adc_init();
 	sensor_values_t sensor_values;
 	
 	led_blink(5, 300);
 	
-	
 	while(1)
-	{
-		if (zero_crossing_read())
-			led_blink(1, 500);
-			
-		read_sensor_values(&sensor_values);
+	{	
+ 		read_sensor_values(&sensor_values);
 		delay_ms(ADC_READ_PERIOD_MS);
 	}
-	
+}
+
+/* ISR for zero-crossing detection */
+ISR (INT0_vect) 
+{
+	generate_driving_pulse(0,0);
 }
