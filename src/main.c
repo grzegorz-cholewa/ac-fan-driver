@@ -1,9 +1,12 @@
 /* AC FAN DRIVER */
 /* The driver is based on ATMega328 and the purpose is to drive AC regulator circuit for 2 AC fans */
-/* according to readings from zero-crossing detection input and ADC voltages from 6 thermistors */
+/* depending on readings from zero-crossing detection input and voltages from 6 thermistors */
 
 #include <asf.h>
 #define F_CPU 8000000UL
+
+/* APP CONFIG */
+#define ADC_READ_PERIOD_MS 1000
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
@@ -98,12 +101,15 @@ int main (void)
 	adc_init();
 	sensor_values_t sensor_values;
 	
-	led_blink(3, 1000);
+	led_blink(5, 300);
+	
 	while(1)
 	{
 		if (zero_crossing_read())
 			led_blink(1, 500);
+			
 		read_sensor_values(&sensor_values);
+		delay_ms(ADC_READ_PERIOD_MS);
 	}
 	
 }
