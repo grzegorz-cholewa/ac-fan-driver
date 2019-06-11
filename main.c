@@ -8,16 +8,13 @@
 /* CONFIG SECTION */
 #define ADC_READ_PERIOD_MS 1000
 #define ADC_SENSOR_NUMBER 6
-#define TRIAC_PULSE_WIDTH_US 2000
+#define TRIAC_DRIVING_RESOLUTION_US 100
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // that pin is always a source for INT0 interrupt
 #define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0)
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1)
-
-#define FAN1 0
-#define FAN2 1
 
 /* TYPE DEFINITIONS */
 typedef struct
@@ -28,14 +25,24 @@ typedef struct
 
 typedef enum 
 {
-	PULSE_IDLE,
-	PULSE_WAITING,
-	PULSE_ACTIVE
+	GATE_IDLE,
+	GATE_ACTIVE,
 } pulse_state_t;
 
+typedef struct 
+{
+	uint8_t fan_number;
+	uint8_t fan_power; // values from 0 to 256
+	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
+	pulse_state_t pulse_state; // to keep current gate status
+} fan_gate_t;
+
 /* GLOBAL VARIABLES */
-uint32_t clock_speed = 16000000
-pulse_state_t pulse_state[2] = {PULSE_IDLE, PULSE_IDLE};
+sensor_values_t sensor_values;
+fan_gate_t fan1 = {0, 0, GATE_IDLE};
+fan_gate_t fan2 = {1, 0, GATE_IDLE};
+uint32_t clock_speed = 16000000;
+uint32_t pulse_delay_counter_us = 0;
 
 /* FUNCTION PROTOTYPES */
 void gpio_init(void);
@@ -88,36 +95,23 @@ void adc_init(void)
 	ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0);
 }
 
-void timer0a_start(uint32_t time_us)
+void timer_start(uint32_t time_us)
 {
-        uint32_t prescaler_value = 256;
-		uint8_t value = (clock_speed/prescaler_value)*(time_us*1000000)-1;
+        uint32_t prescaler_value = 1;
+		uint8_t value = (clock_speed/prescaler_value)*(time_us/1000000)-1;
 		
 		TCCR0A |= (1 << WGM01); // set the Timer Mode to CTC
 		OCR0A = value; // set the value
 		TIMSK0 |= (1 << OCIE0A); // set the ISR COMPA vect
 		sei(); // enable interrupts
-        TCCR0A |= (1 << CS02); // set prescaler to 256 and start the timer
+        TCCR0A |= (1 << CS00); // set prescaler to 1 (off) and start the timer
         TIFR0 |= (1 << TOV0); // reset the overflow flag
 }
 
-void timer0b_start(uint32_t time_us)
-{
-	uint32_t prescaler_value = 256;
-	uint8_t value = (clock_speed/prescaler_value)*(time_us*1000000)-1;
-	
-	TCCR0B |= (1 << WGM01); // set the Timer Mode to CTC
-	OCR0B = value; // set the value
-	TIMSK0 |= (1 << OCIE0A); // set the ISR COMPA vect
-	sei(); // enable interrupts
-	TCCR0B |= (1 << CS02); // set prescaler to 256 and start the timer
-	TIFR0 |= (1 << TOV0); // reset the overflow flag
-}
-
-uint16_t adc_read(uint8_t ADCchannel)
+uint16_t adc_read(uint8_t adc_channel)
 {
 	//select ADC channel with safety mask
-	ADMUX = (ADMUX & 0xF0) | (ADCchannel & 0x0F);
+	ADMUX = (ADMUX & 0xF0) | (adc_channel & 0x0F);
 	//single conversion mode
 	ADCSRA |= (1<<ADSC);
 	// wait until ADC conversion is complete
@@ -140,17 +134,36 @@ uint8_t get_temperature(uint16_t adc_value)
 	return adc_value/10;
 }
 
-uint32_t get_pulse_delay_us(uint8_t fan_number)
+uint32_t get_pulse_delay_us(fan_gate_t fan)
 {
-	if (fan_number == FAN1)
+	if (fan == fan1)
 	{
 		// mock, 5ms
 		return 5000;
 	}
-	if (fan_number == FAN2)
+	if (fan == fan2)
 	{
 		// mock, 5ms
 		return 5000;
+	}
+}
+
+void set_pulse_state(fan_gate_t fan, pulse_state_t pulse_state)
+{
+	fan.pulse_state = pulse_state;
+	if (fan == fan1)
+	{
+		if (pulse_state == GATE_ACTIVE)
+		gpio_set_pin_high(FAN1_DRIVE_PIN);
+		if (pulse_state == GATE_IDLE)
+		gpio_set_pin_low(FAN1_DRIVE_PIN);
+	}
+	if (fan == fan2)
+	{
+		if (pulse_state == GATE_ACTIVE)
+			gpio_set_pin_high(FAN2_DRIVE_PIN);
+		if (pulse_state == GATE_IDLE)
+			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 }
 
@@ -169,46 +182,36 @@ int main (void)
 	delay_init();
 	interrupt_init();
 	adc_init();
-	sensor_values_t sensor_values;
+	
 	led_blink(3, 300);
 	
 	while(1)
 	{	
- 		read_sensors(&sensor_values);
-		delay_ms(ADC_READ_PERIOD_MS);		
+		if (pulse_delay_counter_us >= fan1.activation_delay_us)
+		{
+			set_pulse_state(fan1.fan_number, GATE_ACTIVE);
+		}
+		if (pulse_delay_counter_us >= fan2.activation_delay_us)
+		{
+			set_pulse_state(fan2.fan_number, GATE_ACTIVE);
+		}		
 	}
 }
 
 /* ISR for zero-crossing detection */
 ISR (INT0_vect) 
 {
-	pulse_state[FAN1] = PULSE_WAITING;
-	pulse_state[FAN2] = PULSE_WAITING;
-	timer0a_start(get_pulse_delay_us(FAN1));
-	timer0b_start(get_pulse_delay_us(FAN2));
+	set_pulse_state(fan1.fan_number, GATE_IDLE);
+	set_pulse_state(fan2.fan_number, GATE_IDLE);
+	pulse_delay_counter_us = 0;
+	timer_start(TRIAC_DRIVING_RESOLUTION_US);
 }
 
+/* ISR for periodical timer overflow */
 ISR (TIMER0_COMPA_vect)  // timer0 A overflow interrupt
 {
-	
-	if (pulse_state[FAN1] = PULSE_WAITING)
-	{
-		timer0a_start(TRIAC_PULSE_WIDTH_US);
-		pulse_state[FAN1] = PULSE_ACTIVE;
-	}
-	
-	TCCR0 = 0x00; // stop the timer
-	gpio_set_pin_high(FAN1_DRIVE_PIN);
+	pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
 }
 
-ISR (TIMER0_COMPB_vect)  // timer0 B overflow interrupt
-{
-	if (pulse_state[FAN2] = PULSE_WAITING)
-	{
-		timer0b_start(TRIAC_PULSE_WIDTH_US);
-		pulse_state[FAN2] = PULSE_ACTIVE;
-	}
-	
-	TCCR0 = 0x00; // stop the timer
-	gpio_toggle_pin(FAN2_DRIVE_PIN);
-}
+//ISR_ADC_READ mock
+// 		read_sensors(&sensor_values);
