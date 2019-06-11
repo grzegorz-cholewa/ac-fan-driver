@@ -34,13 +34,12 @@ typedef struct
 	uint8_t fan_number; // index
 	uint8_t fan_power; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
-	gate_state_t pulse_state; // to keep current gate status
 } fan_gate_t;
 
 /* GLOBAL VARIABLES */
 sensor_values_t sensor_values;
-fan_gate_t fan1 = {0, 0, GATE_IDLE};
-fan_gate_t fan2 = {1, 0, GATE_IDLE};
+fan_gate_t fan1 = {0, 0, 0};
+fan_gate_t fan2 = {1, 0, 0};
 uint32_t clock_speed = 16000000;
 uint32_t pulse_delay_counter_us = 0;
 
@@ -91,25 +90,22 @@ void interrupt_init(void)
 
 void adc_init(void)
 {
-	// Select Vref=AVcc
-	ADMUX |= (1<<REFS0); // AVCC with external cap at AREF pin
-	// enable ADC
-	ADCSRA |= 1<<ADEN;
-	//set prescaller to 128
-	ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0);
-}
+	ADMUX |= (1<<REFS0); // VREF set to AVCC with external cap at AREF pin
+	ADCSRA |= 1<<ADEN; // enable ADC
+	ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0); // set prescaller to 128
+} 
 
 void timer_start(uint32_t time_us)
 {
-        uint32_t prescaler_value = 1;
-		uint8_t value = (clock_speed/prescaler_value)*(time_us/1000000)-1;
+    uint32_t prescaler_value = 1;
+	uint8_t value = (clock_speed/prescaler_value)*(time_us/1000000)-1;
 		
-		TCCR0A |= (1 << WGM01); // set the Timer Mode to CTC
-		OCR0A = value; // set the value
-		TIMSK0 |= (1 << OCIE0A); // set the ISR COMPA vect
-		sei(); // enable interrupts
-        TCCR0A |= (1 << CS00); // set prescaler to 1 (off) and start the timer
-        TIFR0 |= (1 << TOV0); // reset the overflow flag
+	TCCR0A |= (1 << WGM01); // set the Timer Mode to CTC
+	OCR0A = value; // set the value
+	TIMSK0 |= (1 << OCIE0A); // set the ISR COMPA vector
+	sei(); // enable interrupts
+    TCCR0A |= (1 << CS00); // set prescaler to 1 (off) and start the timer
+    TIFR0 |= (1 << TOV0); // reset the overflow flag
 }
 
 uint16_t adc_value_read(uint8_t adc_channel)
@@ -125,7 +121,7 @@ uint16_t adc_value_read(uint8_t adc_channel)
 
 uint8_t get_temperature(uint16_t adc_value)
 {
-	// it's a mock formula
+	// MOCK FORMULA
 	return adc_value/10;
 }
 
@@ -146,14 +142,12 @@ uint8_t get_fan_power(fan_gate_t fan, sensor_values_t * sensor_values)
 
 uint32_t get_gate_delay_us(fan_gate_t fan)
 {
-	uint8_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
-	return (fan.fan_power*100/256)*maximum_gate_delay_us;
+	uint32_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
+	return ((256-fan.fan_power)*100/256)*maximum_gate_delay_us;
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state)
 {
-	fan->pulse_state = pulse_state;
-	
 	if (fan->fan_number == fan1.fan_number)
 	{
 		if (pulse_state == GATE_ACTIVE)
@@ -214,8 +208,8 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect) 
 {
-	set_gate_state(fan1.fan_number, GATE_IDLE);
-	set_gate_state(fan2.fan_number, GATE_IDLE);
+	set_gate_state(&fan1, GATE_IDLE);
+	set_gate_state(&fan2, GATE_IDLE);
 	pulse_delay_counter_us = 0;
 	timer_start(TRIAC_DRIVING_RESOLUTION_US);
 }
