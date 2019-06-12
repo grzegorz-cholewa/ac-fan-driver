@@ -21,7 +21,7 @@ typedef struct
 {
 	uint16_t adc_values[ADC_SENSOR_NUMBER];
 	uint8_t temperatures[ADC_SENSOR_NUMBER];
-} sensor_values_t;
+} sensors_t;
 
 typedef enum 
 {
@@ -31,13 +31,13 @@ typedef enum
 
 typedef struct 
 {
-	uint8_t fan_number; // index
-	uint8_t fan_power; // values from 0 to 256
+	uint8_t index; // index
+	uint8_t power; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 } fan_gate_t;
 
 /* GLOBAL VARIABLES */
-sensor_values_t sensor_values;
+sensors_t sensor_values;
 fan_gate_t fan1 = {0, 0, 0};
 fan_gate_t fan2 = {1, 0, 0};
 uint32_t clock_speed = 16000000;
@@ -50,13 +50,14 @@ void interrupt_init(void);
 void timer_start(uint32_t time_us);
 uint16_t adc_value_read(uint8_t adc_channel);
 void adc_init(void);
-uint16_t adc_value_read(uint8_t ADCchannel);;
+uint16_t adc_value_read(uint8_t adc_channel);;
 uint8_t get_temperature(uint16_t adc_value);
-void read_sensors(sensor_values_t * sensor_values);
-uint8_t get_fan_power(fan_gate_t fan, sensor_values_t * sensor_values);
+void read_sensors(sensors_t * sensor_values);
+uint8_t get_fan_power(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void update_input_data(void);
+void drive_triac_gate(void);
 
 /* FUNCTION DEFINITIONS */
 void gpio_init(void)
@@ -125,7 +126,7 @@ uint8_t get_temperature(uint16_t adc_value)
 	return adc_value/10;
 }
 
-void read_sensors(sensor_values_t * sensor_values)
+void read_sensors(sensors_t * sensor_values)
 {
 	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
 	{
@@ -134,7 +135,7 @@ void read_sensors(sensor_values_t * sensor_values)
 	}
 }
 
-uint8_t get_fan_power(fan_gate_t fan, sensor_values_t * sensor_values)
+uint8_t get_fan_power(fan_gate_t fan, sensors_t * sensor_values)
 {
 	// TBD consider how sensor data affects each fan
 	return sensor_values->temperatures[0]; // MOCK FORMULA
@@ -143,19 +144,19 @@ uint8_t get_fan_power(fan_gate_t fan, sensor_values_t * sensor_values)
 uint32_t get_gate_delay_us(fan_gate_t fan)
 {
 	uint32_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
-	return ((256-fan.fan_power)*100/256)*maximum_gate_delay_us;
+	return ((256-fan.power)*100/256)*maximum_gate_delay_us;
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state)
 {
-	if (fan->fan_number == fan1.fan_number)
+	if (fan->index == fan1.index)
 	{
 		if (pulse_state == GATE_ACTIVE)
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
 		if (pulse_state == GATE_IDLE)
 			gpio_set_pin_low(FAN1_DRIVE_PIN);
 	}
-	if (fan->fan_number == fan2.fan_number)
+	if (fan->index == fan2.index)
 	{
 		if (pulse_state == GATE_ACTIVE)
 			gpio_set_pin_high(FAN2_DRIVE_PIN);
@@ -167,10 +168,22 @@ void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state)
 void update_input_data(void)
 {
 	read_sensors(&sensor_values);
-	fan1.fan_power = get_fan_power(fan1, &sensor_values);
-	fan2.fan_power = get_fan_power(fan2, &sensor_values);
+	fan1.power = get_fan_power(fan1, &sensor_values);
+	fan2.power = get_fan_power(fan2, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(fan1);
 	fan2.activation_delay_us = get_gate_delay_us(fan2);
+}
+
+void drive_triac_gate(void)
+{
+	if (pulse_delay_counter_us >= fan1.activation_delay_us)
+	{
+		set_gate_state(&fan1, GATE_ACTIVE);
+	}
+	if (pulse_delay_counter_us >= fan2.activation_delay_us)
+	{
+		set_gate_state(&fan2, GATE_ACTIVE);
+	}		
 }
 
 
@@ -185,22 +198,13 @@ int main (void)
 	while(1)
 	{	
 		static uint32_t loop_counter = 0;
-		
-		if (pulse_delay_counter_us >= fan1.activation_delay_us)
-		{
-			set_gate_state(&fan1, GATE_ACTIVE);
-		}
-		if (pulse_delay_counter_us >= fan2.activation_delay_us)
-		{
-			set_gate_state(&fan2, GATE_ACTIVE);
-		}	
-		
+		drive_triac_gate();
 		loop_counter++;
-		
 		if 	(loop_counter >= clock_speed)
 		{
 			loop_counter = 0;
 			update_input_data();
+			led_blink(1,200);
 		}
 	}
 }
