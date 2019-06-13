@@ -193,7 +193,6 @@ void drive_triac_gate(fan_gate_t * fan)
 int main (void)
 {
 	gpio_init();
-	delay_init();
 	interrupt_init();
 	adc_init();
 	led_blink(3, 300);
@@ -203,8 +202,6 @@ int main (void)
 	while(1)
 	{	
 		static uint32_t loop_counter = 0;
-		drive_triac_gate(&fan1);
-		drive_triac_gate(&fan2);
 		loop_counter++;
 		if 	(loop_counter >= clock_speed)
 		{
@@ -228,5 +225,7 @@ ISR (INT0_vect)
 ISR (TIMER1_COMPA_vect)
 {
 	pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US; // TEMP VALUE
+	drive_triac_gate(&fan1);
+	drive_triac_gate(&fan2);
 }
 
