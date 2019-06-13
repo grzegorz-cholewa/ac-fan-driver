@@ -12,9 +12,9 @@
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
-#define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // that pin is always a source for INT0 interrupt
-#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0)
-#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1)
+#define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
+#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0) // signal for gate of triac driving fan1
+#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1) // signal for gate of triac driving fan2
 
 /* TYPE DEFINITIONS */
 typedef struct
@@ -32,7 +32,7 @@ typedef enum
 typedef struct 
 {
 	uint8_t index; // index
-	uint8_t power; // values from 0 to 256
+	uint8_t active_state_percent; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 } fan_gate_t;
 
@@ -53,7 +53,7 @@ void adc_init(void);
 uint16_t adc_value_read(uint8_t adc_channel);;
 uint8_t get_temperature(uint16_t adc_value);
 void read_sensors(sensors_t * sensor_values);
-uint8_t get_fan_power(fan_gate_t fan, sensors_t * sensor_values);
+uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void update_input_data(void);
@@ -98,25 +98,33 @@ void adc_init(void)
 
 void timer_start(uint32_t time_us)
 {
-    uint32_t prescaler_value = 1;
-	uint8_t value = (clock_speed/prescaler_value)*(time_us/1000000)-1;
+    uint32_t prescaler_value = 8;
+	uint32_t second_us = 1000000;
+	uint8_t value = time_us*(clock_speed/prescaler_value)/second_us-1; // for 100us timer value is 199
 		
-	TCCR0A |= (1 << WGM01); // set the Timer Mode to CTC
-	OCR0A = value; // set the value
-	TIMSK0 |= (1 << OCIE0A); // set the ISR COMPA vector
-	sei(); // enable interrupts
-    TCCR0A |= (1 << CS00); // set prescaler to 1 (off) and start the timer
-    TIFR0 |= (1 << TOV0); // reset the overflow flag
+    OCR1A = 0x3D08; // 1526
+
+    TCCR1B |= (1 << WGM12);
+    // Mode 4, CTC on OCR1A
+
+    TIMSK1 |= (1 << OCIE1A);
+    //Set interrupt on compare match
+
+    TCCR1B |= (1 << CS12) | (1 << CS10);
+    // set prescaler to 1024 and start the timer
+
+
+    sei();
+    // enable interrupts
+    
 }
 
 uint16_t adc_value_read(uint8_t adc_channel)
 {
-	//select ADC channel with safety mask
-	ADMUX = (ADMUX & 0xF0) | (adc_channel & 0x0F);
-	//single conversion mode
-	ADCSRA |= (1<<ADSC);
-	// wait until ADC conversion is complete
-	while( ADCSRA & (1<<ADSC) );
+	
+	ADMUX = (ADMUX & 0xF0) | (adc_channel & 0x0F); // select ADC channel with safety mask
+	ADCSRA |= (1<<ADSC); // single conversion mode
+	while( ADCSRA & (1<<ADSC) ); // wait until ADC conversion is complete
 	return ADC;
 }
 
@@ -135,16 +143,18 @@ void read_sensors(sensors_t * sensor_values)
 	}
 }
 
-uint8_t get_fan_power(fan_gate_t fan, sensors_t * sensor_values)
+uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
 {
 	// TBD consider how sensor data affects each fan
-	return sensor_values->temperatures[0]; // MOCK FORMULA
+	
+	// return sensor_values->temperatures[0]; // MOCK FORMULA
+	return 16; // MOCK VALUE
 }
 
 uint32_t get_gate_delay_us(fan_gate_t fan)
 {
 	uint32_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
-	return ((256-fan.power)*100/256)*maximum_gate_delay_us;
+	return (100-fan.active_state_percent)*maximum_gate_delay_us/100; // 
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state)
@@ -168,8 +178,8 @@ void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state)
 void update_input_data(void)
 {
 	read_sensors(&sensor_values);
-	fan1.power = get_fan_power(fan1, &sensor_values);
-	fan2.power = get_fan_power(fan2, &sensor_values);
+	fan1.active_state_percent = get_active_state_percent(fan1, &sensor_values);
+	fan2.active_state_percent = get_active_state_percent(fan2, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(fan1);
 	fan2.activation_delay_us = get_gate_delay_us(fan2);
 }
@@ -194,7 +204,9 @@ int main (void)
 	interrupt_init();
 	adc_init();
 	led_blink(3, 300);
-
+	update_input_data();
+	timer_start(TRIAC_DRIVING_RESOLUTION_US);
+	
 	while(1)
 	{	
 		static uint32_t loop_counter = 0;
@@ -215,12 +227,13 @@ ISR (INT0_vect)
 	set_gate_state(&fan1, GATE_IDLE);
 	set_gate_state(&fan2, GATE_IDLE);
 	pulse_delay_counter_us = 0;
-	timer_start(TRIAC_DRIVING_RESOLUTION_US);
+	//led_blink(2, 500);
 }
 
 /* ISR for periodical timer overflow */
-ISR (TIMER0_COMPA_vect)  // timer0 A overflow interrupt
+ISR (TIMER1_COMPA_vect)
 {
 	pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
+	led_blink(1,2000);
 }
 
