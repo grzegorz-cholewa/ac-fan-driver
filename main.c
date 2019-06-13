@@ -102,21 +102,11 @@ void timer_start(uint32_t time_us)
 	uint32_t second_us = 1000000;
 	uint8_t value = time_us*(clock_speed/prescaler_value)/second_us-1; // for 100us timer value is 199
 		
-    OCR1A = 0x3D08; // 1526
-
-    TCCR1B |= (1 << WGM12);
-    // Mode 4, CTC on OCR1A
-
-    TIMSK1 |= (1 << OCIE1A);
-    //Set interrupt on compare match
-
-    TCCR1B |= (1 << CS12) | (1 << CS10);
-    // set prescaler to 1024 and start the timer
-
-
-    sei();
-    // enable interrupts
-    
+    OCR1A = value; 
+    TCCR1B |= (1 << WGM12); // Mode 4, CTC on OCR1A
+    TIMSK1 |= (1 << OCIE1A); // set interrupt on compare match
+    TCCR1B |= (1 << CS11); // set prescaler
+    sei(); // enable interrupts
 }
 
 uint16_t adc_value_read(uint8_t adc_channel)
