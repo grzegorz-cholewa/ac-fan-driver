@@ -34,12 +34,13 @@ typedef struct
 	uint8_t index; // index
 	uint8_t active_state_percent; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
+	gate_state_t state;
 } fan_gate_t;
 
 /* GLOBAL VARIABLES */
 sensors_t sensor_values;
-fan_gate_t fan1 = {0, 0, 0};
-fan_gate_t fan2 = {1, 0, 0};
+fan_gate_t fan1 = {0, 0, 0, GATE_IDLE};
+fan_gate_t fan2 = {1, 0, 0, GATE_IDLE};
 uint32_t clock_speed = 16000000;
 uint32_t pulse_delay_counter_us = 0;
 
@@ -54,10 +55,10 @@ uint16_t adc_value_read(uint8_t adc_channel);;
 uint8_t get_temperature(uint16_t adc_value);
 void read_sensors(sensors_t * sensor_values);
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
-uint32_t get_gate_delay_us(fan_gate_t fan);
+uint32_t get_gate_delay_us(fan_gate_t * fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void update_input_data(void);
-void drive_triac_gate(void);
+void drive_triac_gate(fan_gate_t * fan);
 
 /* FUNCTION DEFINITIONS */
 void gpio_init(void)
@@ -138,29 +139,35 @@ uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
 	// TBD consider how sensor data affects each fan
 	
 	// return sensor_values->temperatures[0]; // MOCK FORMULA
-	return 16; // MOCK VALUE
+	// MOCK VALUES:
+	if (fan.index == 0)
+		return 82; 
+	if (fan.index == 1)
+		return 75;
+	return 0;
 }
 
-uint32_t get_gate_delay_us(fan_gate_t fan)
+uint32_t get_gate_delay_us(fan_gate_t * fan)
 {
 	uint32_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
-	return (100-fan.active_state_percent)*maximum_gate_delay_us/100; // 
+	return (100-fan->active_state_percent)*maximum_gate_delay_us/100; // 
 }
 
-void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state)
+void set_gate_state(fan_gate_t * fan, gate_state_t state)
 {
+	fan->state = state;
 	if (fan->index == fan1.index)
 	{
-		if (pulse_state == GATE_ACTIVE)
+		if (state == GATE_ACTIVE)
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
-		if (pulse_state == GATE_IDLE)
+		if (state == GATE_IDLE)
 			gpio_set_pin_low(FAN1_DRIVE_PIN);
 	}
 	if (fan->index == fan2.index)
 	{
-		if (pulse_state == GATE_ACTIVE)
+		if (state == GATE_ACTIVE)
 			gpio_set_pin_high(FAN2_DRIVE_PIN);
-		if (pulse_state == GATE_IDLE)
+		if (state == GATE_IDLE)
 			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 }
@@ -170,20 +177,16 @@ void update_input_data(void)
 	read_sensors(&sensor_values);
 	fan1.active_state_percent = get_active_state_percent(fan1, &sensor_values);
 	fan2.active_state_percent = get_active_state_percent(fan2, &sensor_values);
-	fan1.activation_delay_us = get_gate_delay_us(fan1);
-	fan2.activation_delay_us = get_gate_delay_us(fan2);
+	fan1.activation_delay_us = get_gate_delay_us(&fan1);
+	fan2.activation_delay_us = get_gate_delay_us(&fan2);
 }
 
-void drive_triac_gate(void)
+void drive_triac_gate(fan_gate_t * fan)
 {
-	if (pulse_delay_counter_us >= fan1.activation_delay_us)
+	if ( (fan->state == GATE_IDLE) && (pulse_delay_counter_us >= fan->activation_delay_us) )
 	{
-		set_gate_state(&fan1, GATE_ACTIVE);
+		set_gate_state(fan, GATE_ACTIVE);
 	}
-	if (pulse_delay_counter_us >= fan2.activation_delay_us)
-	{
-		set_gate_state(&fan2, GATE_ACTIVE);
-	}		
 }
 
 
@@ -200,7 +203,8 @@ int main (void)
 	while(1)
 	{	
 		static uint32_t loop_counter = 0;
-		drive_triac_gate();
+		drive_triac_gate(&fan1);
+		drive_triac_gate(&fan2);
 		loop_counter++;
 		if 	(loop_counter >= clock_speed)
 		{
@@ -223,7 +227,6 @@ ISR (INT0_vect)
 /* ISR for periodical timer overflow */
 ISR (TIMER1_COMPA_vect)
 {
-	pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
-	led_blink(1,2000);
+	pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US; // TEMP VALUE
 }
 
