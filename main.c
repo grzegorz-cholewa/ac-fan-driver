@@ -52,8 +52,9 @@ void interrupt_init(void);
 void timer_start(uint32_t time_us);
 uint16_t adc_value_read(uint8_t adc_channel);
 void adc_init(void);
-uint16_t adc_value_read(uint8_t adc_channel);;
+uint16_t adc_value_read(uint8_t adc_channel);
 void read_sensors(sensors_t * sensor_values);
+int max_value(int * value_array, int array_element_number);
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t * fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
@@ -128,17 +129,31 @@ void read_sensors(sensors_t * sensor_values)
 	}
 }
 
+int max_value(int * value_array, int array_element_number)
+{
+	int max_value = 0;
+	for (int i = 0; i <= array_element_number; i++)
+	{
+		if (value_array[i] >= max_value)
+		max_value = value_array[i];
+	}
+	return max_value;
+}
+
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
 {
 	// TBD consider how sensor data affects each fan
-	
-	// return sensor_values->temperatures[0]; // MOCK FORMULA
-	// MOCK VALUES:
+	// MOCK FORMULA:
+	int max_temperature = 0;
 	if (fan.index == 0)
-		return 82; 
+	{
+		max_temperature = max_value(sensor_values->temperatures, ADC_SENSOR_NUMBER);
+	}
 	if (fan.index == 1)
-		return 75;
-	return 0;
+	{
+		max_temperature = max_value(sensor_values->temperatures, ADC_SENSOR_NUMBER);
+	}
+	return max_temperature;
 }
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)
