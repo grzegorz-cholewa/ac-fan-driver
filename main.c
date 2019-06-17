@@ -3,9 +3,10 @@
 /* depending on readings from zero-crossing detection input and voltages from 6 thermistors */
 
 #include <asf.h>
-#define F_CPU 8000000UL
+#include <temperature.h>
 
 /* CONFIG SECTION */
+#define F_CPU 8000000UL
 #define ADC_READ_PERIOD_MS 1000
 #define ADC_SENSOR_NUMBER 6
 #define TRIAC_DRIVING_RESOLUTION_US 100
@@ -20,7 +21,7 @@
 typedef struct
 {
 	uint16_t adc_values[ADC_SENSOR_NUMBER];
-	uint8_t temperatures[ADC_SENSOR_NUMBER];
+	int temperatures[ADC_SENSOR_NUMBER];
 } sensors_t;
 
 typedef enum 
@@ -52,7 +53,6 @@ void timer_start(uint32_t time_us);
 uint16_t adc_value_read(uint8_t adc_channel);
 void adc_init(void);
 uint16_t adc_value_read(uint8_t adc_channel);;
-uint8_t get_temperature(uint16_t adc_value);
 void read_sensors(sensors_t * sensor_values);
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t * fan);
@@ -119,18 +119,12 @@ uint16_t adc_value_read(uint8_t adc_channel)
 	return ADC;
 }
 
-uint8_t get_temperature(uint16_t adc_value)
-{
-	// MOCK FORMULA
-	return adc_value/10;
-}
-
 void read_sensors(sensors_t * sensor_values)
 {
 	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
 	{
 		sensor_values->adc_values[i] = adc_value_read(i);
-		sensor_values->temperatures[i] = get_temperature(sensor_values->adc_values[i]);
+		sensor_values->temperatures[i] = adc_to_temperature(sensor_values->adc_values[i]);
 	}
 }
 
