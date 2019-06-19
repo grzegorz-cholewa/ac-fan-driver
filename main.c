@@ -95,22 +95,30 @@ uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
 {
 	int temperature = sensor_values->temperatures[fan.index];
 	
-	if(temperature < 0 || temperature >= 90) // system error case
+	if(temperature < 0) // system error case: temperature too low
 	{
 		// TBD send error alert to main MCU
-		return 255; // error value
+		// return 255; // TBD: return error value
+		return 0;
 	}
-
-	if (temperature < 30)
+	if(temperature > 90) // system error case: temperature too high
 	{
-		return 0; // turn off
+		// TBD send error alert to main MCU
+		// return 255; // TBD: return error value
+		return 100;
 	}
 	
-	if (temperature > 0 && temperature <= 90)
+	if (temperature < 20)
 	{
-		return temperature+10; // MOCK: send active state between 10% and 100%, TBD: implement PID regulator
+		return 0; // turn off, no cooling needed
 	}
 	
+	if (temperature > 20 && temperature <= 90)
+	{
+		return temperature; // MOCK: send active state between 10% and 90%, TBD: implement PID regulator
+	}
+	
+	return 0; // TBD: return error value
 }
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)
@@ -124,16 +132,16 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	fan->state = state;
 	if (fan->index == fan1.index)
 	{
-		if (state == GATE_ACTIVE)
+		if ((state == GATE_ACTIVE) && (fan->active_state_percent>0))
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
-		if (state == GATE_IDLE)
+		if ((state == GATE_IDLE) && (fan->active_state_percent<100))
 			gpio_set_pin_low(FAN1_DRIVE_PIN);
 	}
 	if (fan->index == fan2.index)
 	{
-		if (state == GATE_ACTIVE)
+		if ((state == GATE_ACTIVE) && (fan->active_state_percent>0))
 			gpio_set_pin_high(FAN2_DRIVE_PIN);
-		if (state == GATE_IDLE)
+		if ((state == GATE_IDLE) && (fan->active_state_percent<100))
 			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 }
@@ -159,17 +167,19 @@ void drive_triac_gate(fan_gate_t * fan)
 int main (void)
 {
 	gpio_init();
-	interrupt_init();
 	adc_init();
 	led_blink(3, 300);
 	update_input_data();
+	set_gate_state(&fan1, GATE_IDLE);
+	set_gate_state(&fan2, GATE_IDLE);
 	timer_start(TRIAC_DRIVING_RESOLUTION_US);
+	interrupt_init();
 	
 	while(1)
 	{	
 		static uint32_t loop_counter = 0;
 		loop_counter++;
-		if 	(loop_counter >= clock_speed)
+		if 	(loop_counter >= 100000)
 		{
 			loop_counter = 0;
 			update_input_data();
@@ -183,8 +193,8 @@ ISR (INT0_vect)
 {
 	set_gate_state(&fan1, GATE_IDLE);
 	set_gate_state(&fan2, GATE_IDLE);
+		
 	pulse_delay_counter_us = 0;
-	//led_blink(2, 500);
 }
 
 /* ISR for periodical timer overflow */
