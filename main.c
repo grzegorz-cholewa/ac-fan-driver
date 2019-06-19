@@ -41,7 +41,6 @@ void gpio_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 void interrupt_init(void);
 void timer_start(uint32_t time_us);
-int max_value(int * value_array, int array_element_number);
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t * fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
@@ -92,32 +91,26 @@ void timer_start(uint32_t time_us)
 }
 
 
-
-int max_value(int * value_array, int array_element_number)
-{
-	int max_value = 0;
-	for (int i = 0; i <= array_element_number; i++)
-	{
-		if (value_array[i] >= max_value)
-		max_value = value_array[i];
-	}
-	return max_value;
-}
-
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
 {
-	// TBD consider how sensor data affects each fan
-	// MOCK FORMULA:
-	int max_temperature = 0;
-	if (fan.index == 0)
+	int temperature = sensor_values->temperatures[fan.index];
+	
+	if(temperature < 0 || temperature >= 90) // system error case
 	{
-		max_temperature = max_value(sensor_values->temperatures, ADC_SENSOR_NUMBER);
+		// TBD send error alert to main MCU
+		return 255; // error value
 	}
-	if (fan.index == 1)
+
+	if (temperature < 30)
 	{
-		max_temperature = max_value(sensor_values->temperatures, ADC_SENSOR_NUMBER);
+		return 0; // turn off
 	}
-	return max_temperature;
+	
+	if (temperature > 0 && temperature <= 90)
+	{
+		return temperature+10; // MOCK: send active state between 10% and 100%, TBD: implement PID regulator
+	}
+	
 }
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)

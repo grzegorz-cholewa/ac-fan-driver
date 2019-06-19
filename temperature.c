@@ -69,7 +69,6 @@ void adc_init(void)
 
 uint16_t adc_value_read(uint8_t adc_channel)
 {
-	
 	ADMUX = (ADMUX & 0xF0) | (adc_channel & 0x0F); // select ADC channel with safety mask
 	ADCSRA |= (1<<ADSC); // single conversion mode
 	while( ADCSRA & (1<<ADSC) ); // wait until ADC conversion is complete
