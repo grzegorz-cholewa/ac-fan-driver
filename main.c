@@ -7,8 +7,6 @@
 
 /* CONFIG SECTION */
 #define F_CPU 8000000UL
-#define ADC_READ_PERIOD_MS 1000
-#define ADC_SENSOR_NUMBER 6
 #define TRIAC_DRIVING_RESOLUTION_US 100
 
 /* PIN DEFINITIONS */
@@ -16,13 +14,6 @@
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
 #define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0) // signal for gate of triac driving fan1
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1) // signal for gate of triac driving fan2
-
-/* TYPE DEFINITIONS */
-typedef struct
-{
-	uint16_t adc_values[ADC_SENSOR_NUMBER];
-	int temperatures[ADC_SENSOR_NUMBER];
-} sensors_t;
 
 typedef enum 
 {
@@ -50,10 +41,6 @@ void gpio_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 void interrupt_init(void);
 void timer_start(uint32_t time_us);
-uint16_t adc_value_read(uint8_t adc_channel);
-void adc_init(void);
-uint16_t adc_value_read(uint8_t adc_channel);
-void read_sensors(sensors_t * sensor_values);
 int max_value(int * value_array, int array_element_number);
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t * fan);
@@ -91,13 +78,6 @@ void interrupt_init(void)
 	    sei();                    // turn on interrupts
 }
 
-void adc_init(void)
-{
-	ADMUX |= (1<<REFS0); // VREF set to AVCC with external cap at AREF pin
-	ADCSRA |= 1<<ADEN; // enable ADC
-	ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0); // set prescaller to 128
-} 
-
 void timer_start(uint32_t time_us)
 {
     uint32_t prescaler_value = 8;
@@ -111,23 +91,7 @@ void timer_start(uint32_t time_us)
     sei(); // enable interrupts
 }
 
-uint16_t adc_value_read(uint8_t adc_channel)
-{
-	
-	ADMUX = (ADMUX & 0xF0) | (adc_channel & 0x0F); // select ADC channel with safety mask
-	ADCSRA |= (1<<ADSC); // single conversion mode
-	while( ADCSRA & (1<<ADSC) ); // wait until ADC conversion is complete
-	return ADC;
-}
 
-void read_sensors(sensors_t * sensor_values)
-{
-	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
-	{
-		sensor_values->adc_values[i] = adc_value_read(i);
-		sensor_values->temperatures[i] = adc_to_temperature(sensor_values->adc_values[i]);
-	}
-}
 
 int max_value(int * value_array, int array_element_number)
 {
@@ -183,7 +147,7 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 
 void update_input_data(void)
 {
-	read_sensors(&sensor_values);
+	read_temperatures(&sensor_values);
 	fan1.active_state_percent = get_active_state_percent(fan1, &sensor_values);
 	fan2.active_state_percent = get_active_state_percent(fan2, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(&fan1);
