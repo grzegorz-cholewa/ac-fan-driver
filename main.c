@@ -52,7 +52,6 @@ void gpio_init(void)
 {
 	ioport_configure_pin(LED_PIN, IOPORT_DIR_OUTPUT |  IOPORT_INIT_LOW);
 	ioport_configure_pin(GPIO_PUSH_BUTTON_0, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
-
 	ioport_configure_pin(ZERO_CROSSING_PIN, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
 	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);	
@@ -90,35 +89,31 @@ void timer_start(uint32_t time_us)
     sei(); // enable interrupts
 }
 
-
 uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
 {
 	int temperature = sensor_values->temperatures[fan.index];
 	
-	if(temperature < 0) // system error case: temperature too low
+	if(temperature < 0) // system error: temperature too low
 	{
-		// TBD send error alert to main MCU
+		// TBD send error to main MCU
 		// return 255; // TBD: return error value
 		return 0;
 	}
-	if(temperature > 90) // system error case: temperature too high
+	else if(temperature > 90) // system error: temperature too high
 	{
-		// TBD send error alert to main MCU
-		// return 255; // TBD: return error value
+		// TBD send error to main MCU
 		return 100;
 	}
 	
-	if (temperature < 20)
+	else if (temperature < 15)
 	{
 		return 0; // turn off, no cooling needed
 	}
 	
-	if (temperature > 20 && temperature <= 90)
+	else
 	{
-		return temperature; // MOCK: send active state between 10% and 90%, TBD: implement PID regulator
+		return 1*temperature; // MOCK, TBD: implement PID regulator
 	}
-	
-	return 0; // TBD: return error value
 }
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)
@@ -150,8 +145,8 @@ void update_input_data(void)
 {
 	read_temperatures(&sensor_values);
 	fan1.active_state_percent = get_active_state_percent(fan1, &sensor_values);
-	fan2.active_state_percent = get_active_state_percent(fan2, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(&fan1);
+	fan2.active_state_percent = get_active_state_percent(fan2, &sensor_values);
 	fan2.activation_delay_us = get_gate_delay_us(&fan2);
 }
 
@@ -191,10 +186,10 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect) 
 {
+	pulse_delay_counter_us = 0;
 	set_gate_state(&fan1, GATE_IDLE);
 	set_gate_state(&fan2, GATE_IDLE);
-		
-	pulse_delay_counter_us = 0;
+
 }
 
 /* ISR for periodical timer overflow */
