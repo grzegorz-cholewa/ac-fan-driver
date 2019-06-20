@@ -10,7 +10,7 @@
 #define TRIAC_DRIVING_RESOLUTION_US 100
 #define TARGET_TEMPERATURE 70
 #define PID_CONST_P (3)
-#define PID_CONST_I (1)
+#define PID_CONST_I (0.1)
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
@@ -163,7 +163,7 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	error = current_temp - TARGET_TEMPERATURE; // negative number means that temperature is lower than target
 	integral = integral + error;
 	
-	active_state_percent = 50 + PID_CONST_P * error; // + PID_CONST_I * integral;
+	active_state_percent =  PID_CONST_P * error  + PID_CONST_I * integral;
 
 	fan->active_state_percent = active_state_percent;
 };
