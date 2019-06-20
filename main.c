@@ -104,18 +104,19 @@ uint32_t get_gate_delay_us(fan_gate_t * fan)
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
 {
 	fan->state = state;
-	if (fan->index == fan1.index)
+	if ((state == GATE_ACTIVE) && (fan->active_state_percent>MIN_FAN_ACTIVE_PERIOD_PERCENT))
 	{
-		if ((state == GATE_ACTIVE) && (fan->active_state_percent>MIN_FAN_ACTIVE_PERIOD_PERCENT))
+		if (fan->index == fan1.index)
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
-		if ((state == GATE_IDLE) && (fan->active_state_percent<MAX_FAN_ACTIVE_PERIOD_PERCENT))
-			gpio_set_pin_low(FAN1_DRIVE_PIN);
-	}
-	if (fan->index == fan2.index)
-	{
-		if ((state == GATE_ACTIVE) && (fan->active_state_percent>MIN_FAN_ACTIVE_PERIOD_PERCENT))
+		if (fan->index == fan2.index)
 			gpio_set_pin_high(FAN2_DRIVE_PIN);
-		if ((state == GATE_IDLE) && (fan->active_state_percent<MAX_FAN_ACTIVE_PERIOD_PERCENT))
+	}
+	
+	if ((state == GATE_IDLE) && (fan->active_state_percent<MAX_FAN_ACTIVE_PERIOD_PERCENT))
+	{
+		if (fan->index == fan1.index)
+			gpio_set_pin_low(FAN1_DRIVE_PIN);
+		if (fan->index == fan2.index)
 			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 }
