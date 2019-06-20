@@ -8,12 +8,17 @@
 /* CONFIG SECTION */
 #define F_CPU 8000000UL
 #define TRIAC_DRIVING_RESOLUTION_US 100
+#define TARGET_TEMPERATURE 70
+#define PID_CONST_P (3)
+#define PID_CONST_I (1)
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
 #define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0) // signal for gate of triac driving fan1
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1) // signal for gate of triac driving fan2
+#define MIN_FAN_ACTIVE_PERIOD_PERCENT 5
+#define MAX_FAN_ACTIVE_PERIOD_PERCENT 95
 
 typedef enum 
 {
@@ -23,7 +28,8 @@ typedef enum
 
 typedef struct 
 {
-	uint8_t index; // index
+	const uint8_t index; // index
+	const uint8_t main_temp_sensor_index;
 	uint8_t active_state_percent; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 	gate_state_t state;
@@ -31,8 +37,8 @@ typedef struct
 
 /* GLOBAL VARIABLES */
 sensors_t sensor_values;
-fan_gate_t fan1 = {0, 0, 0, GATE_IDLE};
-fan_gate_t fan2 = {1, 0, 0, GATE_IDLE};
+fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
+fan_gate_t fan2 = {1, 4, 0, 0, GATE_IDLE};
 uint32_t clock_speed = 16000000;
 uint32_t pulse_delay_counter_us = 0;
 
@@ -41,11 +47,11 @@ void gpio_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 void interrupt_init(void);
 void timer_start(uint32_t time_us);
-uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values);
 uint32_t get_gate_delay_us(fan_gate_t * fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void update_input_data(void);
 void drive_triac_gate(fan_gate_t * fan);
+void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values);
 
 /* FUNCTION DEFINITIONS */
 void gpio_init(void)
@@ -89,33 +95,6 @@ void timer_start(uint32_t time_us)
     sei(); // enable interrupts
 }
 
-uint8_t get_active_state_percent(fan_gate_t fan, sensors_t * sensor_values)
-{
-	int temperature = sensor_values->temperatures[fan.index];
-	
-	if(temperature < 0) // system error: temperature too low
-	{
-		// TBD send error to main MCU
-		// return 255; // TBD: return error value
-		return 0;
-	}
-	else if(temperature > 90) // system error: temperature too high
-	{
-		// TBD send error to main MCU
-		return 100;
-	}
-	
-	else if (temperature < 15)
-	{
-		return 0; // turn off, no cooling needed
-	}
-	
-	else
-	{
-		return 1*temperature; // MOCK, TBD: implement PID regulator
-	}
-}
-
 uint32_t get_gate_delay_us(fan_gate_t * fan)
 {
 	uint32_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
@@ -127,16 +106,16 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	fan->state = state;
 	if (fan->index == fan1.index)
 	{
-		if ((state == GATE_ACTIVE) && (fan->active_state_percent>0))
+		if ((state == GATE_ACTIVE) && (fan->active_state_percent>MIN_FAN_ACTIVE_PERIOD_PERCENT))
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
-		if ((state == GATE_IDLE) && (fan->active_state_percent<100))
+		if ((state == GATE_IDLE) && (fan->active_state_percent<MAX_FAN_ACTIVE_PERIOD_PERCENT))
 			gpio_set_pin_low(FAN1_DRIVE_PIN);
 	}
 	if (fan->index == fan2.index)
 	{
-		if ((state == GATE_ACTIVE) && (fan->active_state_percent>0))
+		if ((state == GATE_ACTIVE) && (fan->active_state_percent>MIN_FAN_ACTIVE_PERIOD_PERCENT))
 			gpio_set_pin_high(FAN2_DRIVE_PIN);
-		if ((state == GATE_IDLE) && (fan->active_state_percent<100))
+		if ((state == GATE_IDLE) && (fan->active_state_percent<MAX_FAN_ACTIVE_PERIOD_PERCENT))
 			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 }
@@ -144,9 +123,10 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 void update_input_data(void)
 {
 	read_temperatures(&sensor_values);
-	fan1.active_state_percent = get_active_state_percent(fan1, &sensor_values);
+	pid_regulator(&fan1, &sensor_values);
+	pid_regulator(&fan2, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(&fan1);
-	fan2.active_state_percent = get_active_state_percent(fan2, &sensor_values);
+
 	fan2.activation_delay_us = get_gate_delay_us(&fan2);
 }
 
@@ -157,6 +137,36 @@ void drive_triac_gate(fan_gate_t * fan)
 		set_gate_state(fan, GATE_ACTIVE);
 	}
 }
+
+void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
+{
+	static int current_temp;
+	static int error;
+	static int integral;
+	int active_state_percent;
+	
+	current_temp = sensor_values->temperatures[fan->main_temp_sensor_index];
+	
+	if(current_temp < 0) // system error: temperature too low
+	{
+		// TBD send error to main MCU
+		fan->active_state_percent = 0;
+		return;
+	}
+	else if(current_temp > 90) // system error: temperature too high
+	{
+		// TBD send error to main MCU
+		fan->active_state_percent = 100;
+		return;
+	}
+	
+	error = current_temp - TARGET_TEMPERATURE; // negative number means that temperature is lower than target
+	integral = integral + error;
+	
+	active_state_percent = 50 + PID_CONST_P * error; // + PID_CONST_I * integral;
+
+	fan->active_state_percent = active_state_percent;
+};
 
 
 int main (void)
