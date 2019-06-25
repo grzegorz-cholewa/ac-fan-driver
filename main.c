@@ -4,24 +4,31 @@
 
 #include <asf.h>
 #include <temperature.h>
+#include <math.h> 
 
 /* CONFIG SECTION */
 #define F_CPU 8000000UL
+#define HALF_SINE_PERIOD_US 10000
 #define TRIAC_DRIVING_RESOLUTION_US 100
 #define TARGET_TEMPERATURE 70
 #define PID_KP 1
 #define PID_TIME_CONST_S 5
 #define TEMPERATURE_SAMPLING_PERIOD_S 1
+#define MIN_FAN_VOLTAGE 5 // this is min value for triac gate driver
+#define MAX_FAN_VOLTAGE 95 // // this is min value for triac gate driver
+#define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
+#define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
+
+#define PROPORTIONAL_OUTPUT_REGULATION 1
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
 #define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0) // signal for gate of triac driving fan1
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1) // signal for gate of triac driving fan2
-#define MIN_FAN_VOLTAGE 5 // this is min value for triac gate driver
-#define MAX_FAN_VOLTAGE 95 // // this is min value for triac gate driver
-#define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
-#define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
+
+/* CONSTANTS DEFINES */
+#define PI (3.14)
 
 typedef enum 
 {
@@ -101,9 +108,8 @@ void timer_start(uint32_t time_us)
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)
 {
-	// TBD: link voltage with proper gate activation delay
-	uint32_t maximum_gate_delay_us = 10000; // each half-sine lasts 10ms, so delay can be up to 10ms
-	return (100-fan->mean_voltage_percent)*maximum_gate_delay_us/100; // 
+	double activation_angle_rad = acos(fan->mean_voltage_percent/100.0); // acos function input is double, value from -1 to 1
+	return (HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2));
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
@@ -150,10 +156,10 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	static int current_temp;
 	static int error;
 	static int integral;
-	int active_state_percent;
+	int mean_voltage_percent;
 	
 	current_temp = sensor_values->temperatures[fan->main_temp_sensor_index];
-	
+
 	if(current_temp < MIN_WORKING_TEMPERATURE) // system error: temperature too low
 	{
 		// TBD send error to main MCU
@@ -170,9 +176,17 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	error = current_temp - TARGET_TEMPERATURE; // negative number means that temperature is lower than target
 	integral = integral + error;
 	
-	active_state_percent =  PID_KP * error  + PID_KI * integral;
+	#ifdef PROPORTIONAL_OUTPUT_REGULATION // TEMPORARY, FOR TESTING ONLY
+   
+    mean_voltage_percent = 50 + 2.5 * error; // + PID_CONST_I * integral;
 
-	fan->mean_voltage_percent = active_state_percent;
+	#else // use PID regulator
+	
+	mean_voltage_percent =  PID_KP * error  + PID_KI * integral;
+	
+	#endif
+	
+	fan->mean_voltage_percent = mean_voltage_percent;
 };
 
 
