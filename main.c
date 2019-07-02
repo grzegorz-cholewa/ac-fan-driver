@@ -10,16 +10,15 @@
 #define F_CPU 8000000UL
 #define HALF_SINE_PERIOD_US 10000
 #define TRIAC_DRIVING_RESOLUTION_US 100
-#define TARGET_TEMPERATURE 70
-#define PID_KP 1
-#define PID_TIME_CONST_S 5
-#define TEMPERATURE_SAMPLING_PERIOD_S 1
 #define MIN_FAN_VOLTAGE 5 // this is min value for triac gate driver
 #define MAX_FAN_VOLTAGE 95 // // this is min value for triac gate driver
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
-
-#define PROPORTIONAL_OUTPUT_REGULATION 1
+#define TARGET_TEMPERATURE 70
+#define PID_KP 1
+#define PID_TIME_CONST_S 5
+#define TEMPERATURE_SAMPLING_PERIOD_S 1
+#define PROPORTIONAL_OUTPUT_REGULATION // activates proportional regulation instead of PI
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
