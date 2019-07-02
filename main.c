@@ -87,7 +87,7 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 
 void interrupt_init(void)
 {
-	    EICRA |= (1 << ISC01);    // set INT0 to trigger on falling edge
+	    EICRA |= (1 << ISC01 || 1 << ISC00);    // set INT0 to trigger on rising edge
 	    EIMSK |= (1 << INT0);     // activates INT0
 	    sei();                    // turn on interrupts
 }
@@ -107,27 +107,27 @@ void timer_start(uint32_t time_us)
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)
 {
-	double activation_angle_rad = acos(fan->mean_voltage_percent/100.0); // acos function input is double, value from -1 to 1
+	double activation_angle_rad = acos(fan->mean_voltage/230); // acos function input is double, value from -1 to 1
 	return (HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2));
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
 {
 	fan->state = state;
-	if ((state == GATE_ACTIVE) && (fan->mean_voltage_percent>MIN_FAN_VOLTAGE))
+	if ((state == GATE_ACTIVE) && (fan->mean_voltage>MIN_FAN_VOLTAGE))
+	{
+		if (fan->index == fan1.index)
+			gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
+		if (fan->index == fan2.index)
+			gpio_set_pin_low(FAN2_DRIVE_PIN);
+	}
+	
+	if ((state == GATE_IDLE) && (fan->mean_voltage<MAX_FAN_VOLTAGE))
 	{
 		if (fan->index == fan1.index)
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
 		if (fan->index == fan2.index)
 			gpio_set_pin_high(FAN2_DRIVE_PIN);
-	}
-	
-	if ((state == GATE_IDLE) && (fan->mean_voltage_percent<MAX_FAN_VOLTAGE))
-	{
-		if (fan->index == fan1.index)
-			gpio_set_pin_low(FAN1_DRIVE_PIN);
-		if (fan->index == fan2.index)
-			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 }
 
