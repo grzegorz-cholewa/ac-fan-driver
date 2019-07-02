@@ -10,10 +10,12 @@
 #define F_CPU 8000000UL
 #define HALF_SINE_PERIOD_US 10000
 #define TRIAC_DRIVING_RESOLUTION_US 100
-#define MIN_FAN_VOLTAGE 5 // this is min value for triac gate driver
-#define MAX_FAN_VOLTAGE 95 // // this is min value for triac gate driver
+#define MIN_FAN_VOLTAGE 23 // this is min value for triac gate driver
+#define MAX_FAN_VOLTAGE 220 // // this is max value for triac gate driver
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
+#define MAX_GATE_DELAY_US 9500
+#define MIN_GATE_DELAY_US 500
 #define TARGET_TEMPERATURE 70
 #define PID_KP 1
 #define PID_TIME_CONST_S 5
@@ -39,7 +41,7 @@ typedef struct
 {
 	const uint8_t index; // index
 	const uint8_t main_temp_sensor_index;
-	uint8_t mean_voltage_percent; // values from 0 to 256
+	uint32_t mean_voltage; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 	gate_state_t state;
 } fan_gate_t;
@@ -47,7 +49,7 @@ typedef struct
 /* GLOBAL VARIABLES */
 sensors_t sensor_values;
 fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
-fan_gate_t fan2 = {1, 4, 0, 0, GATE_IDLE};
+fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
 uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
@@ -107,8 +109,16 @@ void timer_start(uint32_t time_us)
 
 uint32_t get_gate_delay_us(fan_gate_t * fan)
 {
-	double activation_angle_rad = acos(fan->mean_voltage/230); // acos function input is double, value from -1 to 1
-	return (HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2));
+	double activation_angle_rad = acos(fan->mean_voltage/230.0); // acos function input is double, value from -1 to 1
+	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2);
+	
+	if (gate_delay > MAX_GATE_DELAY_US)
+		return MAX_GATE_DELAY_US;
+	if (gate_delay < MIN_GATE_DELAY_US)
+		return MIN_GATE_DELAY_US;
+	
+	return gate_delay;
+	
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
@@ -155,37 +165,39 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	static int current_temp;
 	static int error;
 	static int integral;
-	int mean_voltage_percent;
+	int mean_voltage;
 	
 	current_temp = sensor_values->temperatures[fan->main_temp_sensor_index];
 
 	if(current_temp < MIN_WORKING_TEMPERATURE) // system error: temperature too low
 	{
 		// TBD send error to main MCU
-		fan->mean_voltage_percent = 0;
-		return;
 	}
 	else if(current_temp > MAX_WORKING_TEMPERATURE) // system error: temperature too high
 	{
 		// TBD send error to main MCU
-		fan->mean_voltage_percent = 100;
-		return;
 	}
 	
-	error = current_temp - TARGET_TEMPERATURE; // negative number means that temperature is lower than target
+	error = TARGET_TEMPERATURE - current_temp; // negative number means that temperature is higher then target
 	integral = integral + error;
 	
-	#ifdef PROPORTIONAL_OUTPUT_REGULATION // TEMPORARY, FOR TESTING ONLY
+	#ifdef PROPORTIONAL_OUTPUT_REGULATION // PROPORTIONAL REGULATION, FOR TESTING ONLY
    
-    mean_voltage_percent = 50 + 2.5 * error; // + PID_CONST_I * integral;
+	mean_voltage = 115 - 5*error;
 
 	#else // use PID regulator
 	
-	mean_voltage_percent =  PID_KP * error  + PID_KI * integral;
+	mean_voltage =  - PID_KP * error - PID_KI * integral;
 	
 	#endif
 	
-	fan->mean_voltage_percent = mean_voltage_percent;
+	if (mean_voltage >= MAX_FAN_VOLTAGE)
+		mean_voltage = MAX_FAN_VOLTAGE;
+	
+	if (mean_voltage <= MIN_FAN_VOLTAGE)
+		mean_voltage = MIN_FAN_VOLTAGE;
+	
+	fan->mean_voltage = mean_voltage;
 };
 
 
