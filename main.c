@@ -28,8 +28,9 @@
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
-#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 0) // signal for gate of triac driving fan1
-#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 1) // signal for gate of triac driving fan2
+#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 0) // signal for gate of triac driving fan1
+#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 1) // signal for gate of triac driving fan2
+#define FAN3_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 2) // signal for gate of triac driving fan3
 
 /* CONSTANTS DEFINES */
 #define PI (3.14)
@@ -61,6 +62,7 @@ module_work_state work_state = WORK_STATE_FORCE_OFF;
 sensors_t sensor_values;
 fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
 fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
+fan_gate_t fan3 = {2, 2, 0, 0, GATE_IDLE};
 uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
@@ -137,6 +139,7 @@ void gpio_init(void)
 	ioport_configure_pin(ZERO_CROSSING_PIN, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);	
+	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);	
 }
 
 void interrupt_init(void)
@@ -209,6 +212,7 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	}
 	
 	fan->state = state;
+	
 	if (state == GATE_ACTIVE)
 	{
 		if (fan->index == fan1.index)
