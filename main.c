@@ -7,11 +7,12 @@
 #include <math.h> 
 
 /* CONFIG SECTION */
-#define F_CPU 8000000UL
 #define HALF_SINE_PERIOD_US 10000
 #define TRIAC_DRIVING_RESOLUTION_US 100
-#define MIN_FAN_VOLTAGE 23 // this is min value for triac gate driver
-#define MAX_FAN_VOLTAGE 220 // // this is max value for triac gate driver
+#define ZERO_CROSSING_OFFSET_US 260
+#define GATE_PULSE_TIME_US 500
+#define MIN_FAN_VOLTAGE 50 // this is min value for triac gate driver
+#define MAX_FAN_VOLTAGE 225 // // this is max value for triac gate driver
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
 #define MAX_GATE_DELAY_US 9500
@@ -20,7 +21,7 @@
 #define PID_KP 1
 #define PID_TIME_CONST_S 5
 #define TEMPERATURE_SAMPLING_PERIOD_S 1
-#define PROPORTIONAL_OUTPUT_REGULATION // activates proportional regulation instead of PI
+#define PROPORTIONAL_OUTPUT_REGULATION 1 // activates proportional regulation instead of PI
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
@@ -33,8 +34,9 @@
 
 typedef enum 
 {
-	GATE_IDLE,
+	GATE_IDLE_BEFORE_PULSE,
 	GATE_ACTIVE,
+	GATE_IDLE_AFTER_PULSE
 } gate_state_t;
 
 typedef struct 
@@ -48,8 +50,8 @@ typedef struct
 
 /* GLOBAL VARIABLES */
 sensors_t sensor_values;
-fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
-fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
+fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE_BEFORE_PULSE};
+fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE_BEFORE_PULSE};
 uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
@@ -71,8 +73,8 @@ void gpio_init(void)
 	ioport_configure_pin(LED_PIN, IOPORT_DIR_OUTPUT |  IOPORT_INIT_LOW);
 	ioport_configure_pin(GPIO_PUSH_BUTTON_0, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
 	ioport_configure_pin(ZERO_CROSSING_PIN, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
-	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
-	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);	
+	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
+	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);	
 }
 
 void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
@@ -110,15 +112,15 @@ void timer_start(uint32_t time_us)
 uint32_t get_gate_delay_us(fan_gate_t * fan)
 {
 	double activation_angle_rad = acos(fan->mean_voltage/230.0); // acos function input is double, value from -1 to 1
-	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2);
+	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2.0);
 	
 	if (gate_delay > MAX_GATE_DELAY_US)
 		return MAX_GATE_DELAY_US;
 	if (gate_delay < MIN_GATE_DELAY_US)
 		return MIN_GATE_DELAY_US;
 	
-	return gate_delay;
-	
+	//return 8000 - ZERO_CROSSING_OFFSET_US; // const delay, for debugging
+	return gate_delay - ZERO_CROSSING_OFFSET_US;
 }
 
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
@@ -132,7 +134,7 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 	
-	if ((state == GATE_IDLE) && (fan->mean_voltage<MAX_FAN_VOLTAGE))
+	if ((state != GATE_ACTIVE) && (fan->mean_voltage<MAX_FAN_VOLTAGE))
 	{
 		if (fan->index == fan1.index)
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
@@ -147,16 +149,20 @@ void update_input_data(void)
 	pid_regulator(&fan1, &sensor_values);
 	pid_regulator(&fan2, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(&fan1);
-
 	fan2.activation_delay_us = get_gate_delay_us(&fan2);
 }
 
 void drive_triac_gate(fan_gate_t * fan)
 {
-	if ( (fan->state == GATE_IDLE) && (gate_pulse_delay_counter_us >= fan->activation_delay_us) )
+	if ( (fan->state == GATE_IDLE_BEFORE_PULSE) && (gate_pulse_delay_counter_us >= fan->activation_delay_us) )
 	{
 		set_gate_state(fan, GATE_ACTIVE);
 	}
+	if ( (fan->state == GATE_ACTIVE) && (gate_pulse_delay_counter_us >= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
+	{
+		set_gate_state(fan, GATE_IDLE_AFTER_PULSE);
+	}
+	
 }
 
 void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
@@ -184,6 +190,8 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	#ifdef PROPORTIONAL_OUTPUT_REGULATION // PROPORTIONAL REGULATION, FOR TESTING ONLY
    
 	mean_voltage = 115 - 5*error;
+	//mean_voltage = current_temp *3;
+	// mean_voltage = 75; // for setting const value
 
 	#else // use PID regulator
 	
@@ -207,8 +215,6 @@ int main (void)
 	adc_init();
 	led_blink(3, 300);
 	update_input_data();
-	set_gate_state(&fan1, GATE_IDLE);
-	set_gate_state(&fan2, GATE_IDLE);
 	timer_start(TRIAC_DRIVING_RESOLUTION_US);
 	interrupt_init();
 	
@@ -226,10 +232,9 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect) 
 {
+	set_gate_state(&fan1, GATE_IDLE_BEFORE_PULSE);
+	set_gate_state(&fan2, GATE_IDLE_BEFORE_PULSE);
 	gate_pulse_delay_counter_us = 0;
-	set_gate_state(&fan1, GATE_IDLE);
-	set_gate_state(&fan2, GATE_IDLE);
-
 }
 
 /* ISR for periodical timer overflow */
