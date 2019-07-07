@@ -10,10 +10,11 @@
 #define HALF_SINE_PERIOD_US 10000
 #define TRIAC_DRIVING_RESOLUTION_US 100
 #define ZERO_CROSSING_OFFSET_US 260
-#define GATE_PULSE_TIME_US 500
+#define GATE_PULSE_TIME_US 100
 #define MIN_FAN_VOLTAGE 50 // this is min value for triac gate driver
 #define MAX_FAN_VOLTAGE 225 // // this is max value for triac gate driver
-#define FAN_FULL_ON_VOLTAGE
+#define FAN_FULL_ON_VOLTAGE 255
+#define FAN_OFF_VOLTAGE 0
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
 #define MAX_GATE_DELAY_US 9500
@@ -42,9 +43,8 @@ typedef enum
 
 typedef enum 
 {
-	GATE_IDLE_BEFORE_PULSE,
+	GATE_IDLE,
 	GATE_ACTIVE,
-	GATE_IDLE_AFTER_PULSE
 } gate_state_t;
 
 typedef struct 
@@ -59,8 +59,8 @@ typedef struct
 /* GLOBAL VARIABLES */
 module_work_state work_state = WORK_STATE_FORCE_OFF;
 sensors_t sensor_values;
-fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE_BEFORE_PULSE};
-fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE_BEFORE_PULSE};
+fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
+fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
 uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
@@ -124,9 +124,9 @@ uint32_t get_gate_delay_us(fan_gate_t * fan)
 	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2.0);
 	
 	if (gate_delay > MAX_GATE_DELAY_US)
-		return MAX_GATE_DELAY_US;
+		return MAX_GATE_DELAY_US - ZERO_CROSSING_OFFSET_US;
 	if (gate_delay < MIN_GATE_DELAY_US)
-		return MIN_GATE_DELAY_US;
+		return MIN_GATE_DELAY_US - ZERO_CROSSING_OFFSET_US;
 	
 	//return 8000 - ZERO_CROSSING_OFFSET_US; // const delay, for debugging
 	return gate_delay - ZERO_CROSSING_OFFSET_US;
@@ -172,15 +172,26 @@ void drive_fan(fan_gate_t * fan)
 	{
 		case WORK_STATE_AUTO:
 		{
-			if ( (fan->state == GATE_IDLE_BEFORE_PULSE) && (gate_pulse_delay_counter_us >= fan->activation_delay_us) )
+			if (fan->mean_voltage<MIN_FAN_VOLTAGE)
 			{
-				if (fan->mean_voltage>=MIN_FAN_VOLTAGE)
-					set_gate_state(fan, GATE_ACTIVE);
+				set_gate_state(fan, GATE_IDLE);
+				break;
 			}
-			if ( (fan->state == GATE_ACTIVE) && (gate_pulse_delay_counter_us >= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
+				
+			if (fan->mean_voltage>=MAX_FAN_VOLTAGE)
 			{
-				if (fan->mean_voltage<=MAX_FAN_VOLTAGE)
-					set_gate_state(fan, GATE_IDLE_AFTER_PULSE);
+				set_gate_state(fan, GATE_ACTIVE);
+				break;
+			}
+				
+			if ( (gate_pulse_delay_counter_us >= fan->activation_delay_us) && (gate_pulse_delay_counter_us <= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
+			{
+				
+				set_gate_state(fan, GATE_ACTIVE);
+			}
+			else
+			{
+				set_gate_state(fan, GATE_IDLE);
 			}
 			break;
 		}
@@ -189,7 +200,7 @@ void drive_fan(fan_gate_t * fan)
 		break;
 		
 		case WORK_STATE_FORCE_OFF:
-		set_gate_state(fan, GATE_IDLE_BEFORE_PULSE);
+		set_gate_state(fan, GATE_IDLE);
 		break;
 	}
 }
@@ -229,10 +240,10 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	#endif
 	
 	if (mean_voltage >= MAX_FAN_VOLTAGE)
-		mean_voltage = MAX_FAN_VOLTAGE;
+		mean_voltage = FAN_FULL_ON_VOLTAGE;
 	
 	if (mean_voltage <= MIN_FAN_VOLTAGE)
-		mean_voltage = MIN_FAN_VOLTAGE;
+		mean_voltage = FAN_OFF_VOLTAGE;
 	
 	fan->mean_voltage = mean_voltage;
 };
@@ -262,11 +273,6 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect) 
 {
-	if (work_state == WORK_STATE_AUTO)
-	{
-		set_gate_state(&fan1, GATE_IDLE_BEFORE_PULSE);
-		set_gate_state(&fan2, GATE_IDLE_BEFORE_PULSE);
-	}
 	gate_pulse_delay_counter_us = 0;
 }
 
