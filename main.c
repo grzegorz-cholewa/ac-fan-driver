@@ -125,6 +125,11 @@ uint32_t get_gate_delay_us(fan_gate_t * fan)
 
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
 {
+	if (fan->state == state)
+	{
+		return; // no state change
+	}
+	
 	fan->state = state;
 	if ((state == GATE_ACTIVE) && (fan->mean_voltage>MIN_FAN_VOLTAGE))
 	{
