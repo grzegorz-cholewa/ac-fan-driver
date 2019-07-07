@@ -32,6 +32,13 @@
 /* CONSTANTS DEFINES */
 #define PI (3.14)
 
+typedef enum
+{
+	WORK_STATE_FORCE_OFF,
+	WORK_STATE_FORCE_FULL_ON,
+	WORK_STATE_AUTO
+} module_work_state;
+
 typedef enum 
 {
 	GATE_IDLE_BEFORE_PULSE,
@@ -49,6 +56,7 @@ typedef struct
 } fan_gate_t;
 
 /* GLOBAL VARIABLES */
+module_work_state work_state = WORK_STATE_FORCE_OFF;
 sensors_t sensor_values;
 fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE_BEFORE_PULSE};
 fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE_BEFORE_PULSE};
@@ -159,14 +167,30 @@ void update_input_data(void)
 
 void drive_triac_gate(fan_gate_t * fan)
 {
-	if ( (fan->state == GATE_IDLE_BEFORE_PULSE) && (gate_pulse_delay_counter_us >= fan->activation_delay_us) )
+	switch (work_state)
 	{
+		case WORK_STATE_AUTO:
+		{
+			if ( (fan->state == GATE_IDLE_BEFORE_PULSE) && (gate_pulse_delay_counter_us >= fan->activation_delay_us) )
+			{
+				set_gate_state(fan, GATE_ACTIVE);
+			}
+			if ( (fan->state == GATE_ACTIVE) && (gate_pulse_delay_counter_us >= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
+			{
+				set_gate_state(fan, GATE_IDLE_AFTER_PULSE);
+			}
+			break;
+		}
+		case WORK_STATE_FORCE_FULL_ON:
 		set_gate_state(fan, GATE_ACTIVE);
+		break;
+		
+		case WORK_STATE_FORCE_OFF:
+		set_gate_state(fan, GATE_IDLE_BEFORE_PULSE);
+		break;
 	}
-	if ( (fan->state == GATE_ACTIVE) && (gate_pulse_delay_counter_us >= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
-	{
-		set_gate_state(fan, GATE_IDLE_AFTER_PULSE);
-	}
+	
+
 	
 }
 
@@ -222,6 +246,7 @@ int main (void)
 	update_input_data();
 	timer_start(TRIAC_DRIVING_RESOLUTION_US);
 	interrupt_init();
+	work_state = WORK_STATE_AUTO;
 	
 	while(1)
 	{	
@@ -237,8 +262,11 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect) 
 {
-	set_gate_state(&fan1, GATE_IDLE_BEFORE_PULSE);
-	set_gate_state(&fan2, GATE_IDLE_BEFORE_PULSE);
+	if (work_state == WORK_STATE_AUTO)
+	{
+		set_gate_state(&fan1, GATE_IDLE_BEFORE_PULSE);
+		set_gate_state(&fan2, GATE_IDLE_BEFORE_PULSE);
+	}
 	gate_pulse_delay_counter_us = 0;
 }
 
