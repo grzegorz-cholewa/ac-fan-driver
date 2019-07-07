@@ -13,6 +13,7 @@
 #define GATE_PULSE_TIME_US 500
 #define MIN_FAN_VOLTAGE 50 // this is min value for triac gate driver
 #define MAX_FAN_VOLTAGE 225 // // this is max value for triac gate driver
+#define FAN_FULL_ON_VOLTAGE
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
 #define MAX_GATE_DELAY_US 9500
@@ -72,7 +73,7 @@ void timer_start(uint32_t time_us);
 uint32_t get_gate_delay_us(fan_gate_t * fan);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void update_input_data(void);
-void drive_triac_gate(fan_gate_t * fan);
+void drive_fan(fan_gate_t * fan);
 void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values);
 
 /* FUNCTION DEFINITIONS */
@@ -139,7 +140,7 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	}
 	
 	fan->state = state;
-	if ((state == GATE_ACTIVE) && (fan->mean_voltage>MIN_FAN_VOLTAGE))
+	if (state == GATE_ACTIVE)
 	{
 		if (fan->index == fan1.index)
 			gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
@@ -147,7 +148,7 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 			gpio_set_pin_low(FAN2_DRIVE_PIN);
 	}
 	
-	if ((state != GATE_ACTIVE) && (fan->mean_voltage<MAX_FAN_VOLTAGE))
+	if (state != GATE_ACTIVE)
 	{
 		if (fan->index == fan1.index)
 			gpio_set_pin_high(FAN1_DRIVE_PIN);
@@ -165,7 +166,7 @@ void update_input_data(void)
 	fan2.activation_delay_us = get_gate_delay_us(&fan2);
 }
 
-void drive_triac_gate(fan_gate_t * fan)
+void drive_fan(fan_gate_t * fan)
 {
 	switch (work_state)
 	{
@@ -173,11 +174,13 @@ void drive_triac_gate(fan_gate_t * fan)
 		{
 			if ( (fan->state == GATE_IDLE_BEFORE_PULSE) && (gate_pulse_delay_counter_us >= fan->activation_delay_us) )
 			{
-				set_gate_state(fan, GATE_ACTIVE);
+				if (fan->mean_voltage>=MIN_FAN_VOLTAGE)
+					set_gate_state(fan, GATE_ACTIVE);
 			}
 			if ( (fan->state == GATE_ACTIVE) && (gate_pulse_delay_counter_us >= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
 			{
-				set_gate_state(fan, GATE_IDLE_AFTER_PULSE);
+				if (fan->mean_voltage<=MAX_FAN_VOLTAGE)
+					set_gate_state(fan, GATE_IDLE_AFTER_PULSE);
 			}
 			break;
 		}
@@ -189,9 +192,6 @@ void drive_triac_gate(fan_gate_t * fan)
 		set_gate_state(fan, GATE_IDLE_BEFORE_PULSE);
 		break;
 	}
-	
-
-	
 }
 
 void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
@@ -275,7 +275,7 @@ ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
 	pid_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
-	drive_triac_gate(&fan1);
-	drive_triac_gate(&fan2);
+	drive_fan(&fan1);
+	drive_fan(&fan2);
 }
 
