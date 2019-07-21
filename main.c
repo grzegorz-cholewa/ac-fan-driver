@@ -27,6 +27,7 @@
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
+#define LED_RED_PIN IOPORT_CREATE_PIN(PORTE, 0)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
 #define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 0) // signal for gate of triac driving fan1
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 1) // signal for gate of triac driving fan2
@@ -185,8 +186,8 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	
 	#ifdef PROPORTIONAL_OUTPUT_REGULATION // PROPORTIONAL REGULATION, FOR TESTING ONLY
 	
-	mean_voltage = 115 - 5*error;
-	//mean_voltage = current_temp *3;
+	//mean_voltage = 115 - 5*error;
+	mean_voltage = current_temp *3;
 	// mean_voltage = 75; // for setting const value
 
 	#else // use PID regulator
