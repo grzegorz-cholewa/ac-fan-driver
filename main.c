@@ -26,12 +26,12 @@
 #define PROPORTIONAL_OUTPUT_REGULATION 1 // activates proportional regulation instead of PI
 
 /* PIN DEFINITIONS */
-#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
-#define LED_RED_PIN IOPORT_CREATE_PIN(PORTE, 0)
+#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
+#define LED_RED_PIN IOPORT_CREATE_PIN(PORTD, 3)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
-#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 0) // signal for gate of triac driving fan1
-#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 1) // signal for gate of triac driving fan2
-#define FAN3_DRIVE_PIN IOPORT_CREATE_PIN(PORTB, 2) // signal for gate of triac driving fan3
+#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
+#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
+#define FAN3_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 7) // signal for gate of triac driving fan3
 
 /* CONSTANTS DEFINES */
 #define PI (3.14)
@@ -77,6 +77,7 @@ void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
+void send_and_indicate_error(void);
 void update_input_data(void);
 
 /* FUNCTION DEFINITIONS */
@@ -220,6 +221,8 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 		gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
 		if (fan->index == fan2.index)
 		gpio_set_pin_low(FAN2_DRIVE_PIN);
+		if (fan->index == fan3.index)
+		gpio_set_pin_low(FAN3_DRIVE_PIN);
 	}
 	
 	if (state != GATE_ACTIVE)
@@ -228,6 +231,8 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 		gpio_set_pin_high(FAN1_DRIVE_PIN);
 		if (fan->index == fan2.index)
 		gpio_set_pin_high(FAN2_DRIVE_PIN);
+		if (fan->index == fan3.index)
+		gpio_set_pin_high(FAN3_DRIVE_PIN);
 	}
 }
 
@@ -244,13 +249,22 @@ void timer_start(uint32_t time_us)
 	sei(); // enable interrupts
 }
 
+void send_and_indicate_error(void)
+{
+	// TBD send error to main MCU
+	LED_On(LED_RED_PIN);	
+}
+
+
 void update_input_data(void)
 {
 	read_temperatures(&sensor_values);
 	pid_regulator(&fan1, &sensor_values);
 	pid_regulator(&fan2, &sensor_values);
+	pid_regulator(&fan3, &sensor_values);
 	fan1.activation_delay_us = get_gate_delay_us(&fan1);
 	fan2.activation_delay_us = get_gate_delay_us(&fan2);
+	fan3.activation_delay_us = get_gate_delay_us(&fan3);
 }
 
 
@@ -288,5 +302,6 @@ ISR (TIMER1_COMPA_vect)
 	pid_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
 	drive_fan(&fan1);
 	drive_fan(&fan2);
+	drive_fan(&fan3);
 }
 
