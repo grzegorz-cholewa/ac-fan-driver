@@ -2,28 +2,13 @@
 /* The driver is based on ATMega328 and the purpose is to drive AC regulator circuit for 2 AC fans */
 /* depending on readings from zero-crossing detection input and voltages from 6 thermistors */
 
+/* STANDARD INCLUDES */
 #include <asf.h>
-#include <temperature.h>
 #include <math.h> 
 
-/* CONFIG SECTION */
-#define HALF_SINE_PERIOD_US 10000
-#define TRIAC_DRIVING_RESOLUTION_US 100
-#define ZERO_CROSSING_OFFSET_US 260
-#define GATE_PULSE_TIME_US 100
-#define MIN_FAN_VOLTAGE 50 // this is min value for triac gate driver
-#define MAX_FAN_VOLTAGE 225 // // this is max value for triac gate driver
-#define FAN_FULL_ON_VOLTAGE 255
-#define FAN_OFF_VOLTAGE 0
-#define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in sending error alert
-#define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in sending error alert
-#define MAX_GATE_DELAY_US 9500
-#define MIN_GATE_DELAY_US 500
-#define TARGET_TEMPERATURE 70
-#define PID_KP 1
-#define PID_TIME_CONST_S 5
-#define TEMPERATURE_SAMPLING_PERIOD_S 1
-#define PROPORTIONAL_OUTPUT_REGULATION 1 // activates proportional regulation instead of PI
+/* MODULES */
+#include <config.h>
+#include <temperature.h>
 
 /* PIN DEFINITIONS */
 #define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
@@ -33,9 +18,7 @@
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
 #define FAN3_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 7) // signal for gate of triac driving fan3
 
-/* CONSTANTS DEFINES */
-#define PI (3.14)
-
+/* TYPE DEFINITIONS */
 typedef enum
 {
 	WORK_STATE_FORCE_OFF,
@@ -175,26 +158,23 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 
 	if(current_temp < MIN_WORKING_TEMPERATURE) // system error: temperature too low
 	{
-		// TBD send error to main MCU
+		send_and_indicate_error();
 	}
 	else if(current_temp > MAX_WORKING_TEMPERATURE) // system error: temperature too high
 	{
-		// TBD send error to main MCU
+		send_and_indicate_error();
 	}
 	
 	error = TARGET_TEMPERATURE - current_temp; // negative number means that temperature is higher then target
 	integral = integral + error;
 	
 	#ifdef PROPORTIONAL_OUTPUT_REGULATION // PROPORTIONAL REGULATION, FOR TESTING ONLY
-	
 	//mean_voltage = 115 - 5*error;
-	mean_voltage = current_temp *3;
-	// mean_voltage = 75; // for setting const value
-
+	mean_voltage = (sensor_values->adc_values[fan->main_temp_sensor_index])/4; // mock
+	// mean_voltage = 75; // mock, const value
+	
 	#else // use PID regulator
-	
 	mean_voltage =  - PID_KP * error - PID_KI * integral;
-	
 	#endif
 	
 	if (mean_voltage >= MAX_FAN_VOLTAGE)
@@ -280,11 +260,10 @@ int main (void)
 	
 	while(1)
 	{	
-		if 	(pid_pulse_delay_counter_us >= TEMPERATURE_SAMPLING_PERIOD_S*1000000)
+		if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
 			update_input_data();
 			pid_pulse_delay_counter_us = 0;
-			led_blink(1,200);
 		}
 	}
 }
@@ -304,4 +283,3 @@ ISR (TIMER1_COMPA_vect)
 	drive_fan(&fan2);
 	drive_fan(&fan3);
 }
-
