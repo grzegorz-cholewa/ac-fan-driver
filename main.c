@@ -47,6 +47,7 @@ uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
+bool drive_triacs_flag_pending = false;
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan);
@@ -262,9 +263,14 @@ int main (void)
 			update_working_parameters(&fan3);
 			pid_pulse_delay_counter_us = 0;
 		}
-		drive_fan(&fan1);
-		drive_fan(&fan2);
-		drive_fan(&fan3);
+		if (drive_triacs_flag_pending == true)
+		{
+			drive_fan(&fan1);
+			drive_fan(&fan2);
+			drive_fan(&fan3);
+			drive_triacs_flag_pending = false;		
+		}
+
 	}
 }
 
@@ -279,4 +285,5 @@ ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
 	pid_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
+	drive_triacs_flag_pending = true;
 }
