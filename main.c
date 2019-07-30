@@ -43,25 +43,22 @@ typedef struct
 
 /* GLOBAL VARIABLES */
 module_work_state work_state = WORK_STATE_FORCE_OFF;
-sensors_t sensor_values;
-fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
-fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
-fan_gate_t fan3 = {2, 2, 0, 0, GATE_IDLE};
 uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
+sensors_t sensor_values;
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan);
-uint32_t get_gate_delay_us(fan_gate_t * fan);
+uint32_t get_gate_delay_us(uint8_t mean_voltage);
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
-void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values);
+uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void send_and_indicate_error(void);
-void update_input_data(void);
+void update_working_parameters(fan_gate_t * fan);
 
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan)
@@ -103,9 +100,9 @@ void drive_fan(fan_gate_t * fan)
 	}
 }
 
-uint32_t get_gate_delay_us(fan_gate_t * fan)
+uint32_t get_gate_delay_us(uint8_t mean_voltage)
 {
-	double activation_angle_rad = acos(fan->mean_voltage/230.0); // acos function input is double, value from -1 to 1
+	double activation_angle_rad = acos(mean_voltage/230.0); // acos function input is double, value from -1 to 1
 	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2.0);
 	
 	if (gate_delay > MAX_GATE_DELAY_US)
@@ -123,8 +120,8 @@ void gpio_init(void)
 	ioport_configure_pin(GPIO_PUSH_BUTTON_0, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
 	ioport_configure_pin(ZERO_CROSSING_PIN, IOPORT_DIR_INPUT | IOPORT_PULL_UP);
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
-	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);	
-	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);	
+	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
+	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 }
 
 void interrupt_init(void)
@@ -146,15 +143,12 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
+uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 {
 	static float PID_KI = PID_KP/PID_TIME_CONST_S;
-	static int current_temp;
 	static int error;
 	static int integral;
-	int mean_voltage;
-	
-	current_temp = sensor_values->temperatures[fan->main_temp_sensor_index];
+	uint8_t mean_voltage;
 
 	if(current_temp < MIN_WORKING_TEMPERATURE) // system error: temperature too low
 	{
@@ -168,10 +162,9 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	error = TARGET_TEMPERATURE - current_temp; // negative number means that temperature is higher then target
 	integral = integral + error;
 	
-	#ifdef PROPORTIONAL_OUTPUT_REGULATION // PROPORTIONAL REGULATION, FOR TESTING ONLY
-	//mean_voltage = 115 - 5*error;
-	mean_voltage = (sensor_values->adc_values[fan->main_temp_sensor_index])/4; // mock
-	// mean_voltage = 75; // mock, const value
+	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
+	mean_voltage = debug_adc_read/4; // voltage proportional to adc read
+	// mean_voltage = 75; // const value
 	
 	#else // use PID regulator
 	mean_voltage =  - PID_KP * error - PID_KI * integral;
@@ -183,7 +176,7 @@ void pid_regulator(fan_gate_t * fan, sensors_t * sensor_values)
 	if (mean_voltage <= MIN_FAN_VOLTAGE)
 	mean_voltage = FAN_OFF_VOLTAGE;
 	
-	fan->mean_voltage = mean_voltage;
+	return mean_voltage;
 };
 
 void set_gate_state(fan_gate_t * fan, gate_state_t state)
@@ -197,21 +190,21 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	
 	if (state == GATE_ACTIVE)
 	{
-		if (fan->index == fan1.index)
+		if (fan->index == 0)
 		gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
-		if (fan->index == fan2.index)
+		if (fan->index == 1)
 		gpio_set_pin_low(FAN2_DRIVE_PIN);
-		if (fan->index == fan3.index)
+		if (fan->index == 2)
 		gpio_set_pin_low(FAN3_DRIVE_PIN);
 	}
 	
 	if (state != GATE_ACTIVE)
 	{
-		if (fan->index == fan1.index)
+		if (fan->index == 0)
 		gpio_set_pin_high(FAN1_DRIVE_PIN);
-		if (fan->index == fan2.index)
+		if (fan->index == 1)
 		gpio_set_pin_high(FAN2_DRIVE_PIN);
-		if (fan->index == fan3.index)
+		if (fan->index == 2)
 		gpio_set_pin_high(FAN3_DRIVE_PIN);
 	}
 }
@@ -236,40 +229,47 @@ void send_and_indicate_error(void)
 }
 
 
-void update_input_data(void)
+void update_working_parameters(fan_gate_t * fan)
 {
 	read_temperatures(&sensor_values);
-	pid_regulator(&fan1, &sensor_values);
-	pid_regulator(&fan2, &sensor_values);
-	pid_regulator(&fan3, &sensor_values);
-	fan1.activation_delay_us = get_gate_delay_us(&fan1);
-	fan2.activation_delay_us = get_gate_delay_us(&fan2);
-	fan3.activation_delay_us = get_gate_delay_us(&fan3);
+	fan->mean_voltage = pid_regulator(sensor_values.temperatures[fan->main_temp_sensor_index], sensor_values.adc_values[fan->main_temp_sensor_index]);
+	fan->activation_delay_us = get_gate_delay_us(fan->mean_voltage);
 }
-
 
 int main (void)
 {
+	work_state = WORK_STATE_AUTO;
+	fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
+	fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
+	fan_gate_t fan3 = {2, 2, 0, 0, GATE_IDLE};
+
 	gpio_init();
 	adc_init();
-	led_blink(3, 300);
-	update_input_data();
-	timer_start(TRIAC_DRIVING_RESOLUTION_US);
 	interrupt_init();
-	work_state = WORK_STATE_AUTO;
+	led_blink(3, 300);
+	
+	timer_start(TRIAC_DRIVING_RESOLUTION_US);
+	update_working_parameters(&fan1);
+	update_working_parameters(&fan2);
+	update_working_parameters(&fan3);
 	
 	while(1)
-	{	
+	{
 		if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
-			update_input_data();
+			update_working_parameters(&fan1);
+			update_working_parameters(&fan2);
+			update_working_parameters(&fan3);
 			pid_pulse_delay_counter_us = 0;
 		}
+		drive_fan(&fan1);
+		drive_fan(&fan2);
+		drive_fan(&fan3);
 	}
 }
 
 /* ISR for zero-crossing detection */
-ISR (INT0_vect) 
+ISR (INT0_vect)
 {
 	gate_pulse_delay_counter_us = 0;
 }
@@ -279,7 +279,4 @@ ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
 	pid_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
-	drive_fan(&fan1);
-	drive_fan(&fan2);
-	drive_fan(&fan3);
 }

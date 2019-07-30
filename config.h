@@ -23,8 +23,8 @@
 #define TARGET_TEMPERATURE 70
 #define PID_KP 1
 #define PID_TIME_CONST_S 5
-#define WORKING_PARAMETERS_UPDATE_PERIOD_US 500000
-#define PROPORTIONAL_OUTPUT_REGULATION 1 // activates proportional regulation instead of PI
+#define WORKING_PARAMETERS_UPDATE_PERIOD_US 200000
+#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
 
 /* CONSTANTS */
 #define PI (3.14)
