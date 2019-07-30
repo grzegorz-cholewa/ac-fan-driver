@@ -106,11 +106,11 @@ uint32_t get_gate_delay_us(uint8_t mean_voltage)
 	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2.0);
 	
 	if (gate_delay > MAX_GATE_DELAY_US)
-	return MAX_GATE_DELAY_US - ZERO_CROSSING_OFFSET_US;
+		gate_delay = MAX_GATE_DELAY_US;
+		
 	if (gate_delay < MIN_GATE_DELAY_US)
-	return MIN_GATE_DELAY_US - ZERO_CROSSING_OFFSET_US;
-	
-	//return 8000 - ZERO_CROSSING_OFFSET_US; // const delay, for debugging
+		gate_delay = MIN_GATE_DELAY_US;
+
 	return gate_delay - ZERO_CROSSING_OFFSET_US;
 }
 
@@ -163,8 +163,8 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 	integral = integral + error;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-	mean_voltage = debug_adc_read/4; // voltage proportional to adc read
-	// mean_voltage = 75; // const value
+	// mean_voltage = debug_adc_read/4; // voltage proportional to adc read
+	mean_voltage = 75; // const value
 	
 	#else // use PID regulator
 	mean_voltage =  - PID_KP * error - PID_KI * integral;
