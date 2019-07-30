@@ -84,7 +84,7 @@ void drive_fan(fan_gate_t * fan)
 			
 			if ( (temp_gate_pulse_delay_counter_us >= fan->activation_delay_us) && (temp_gate_pulse_delay_counter_us <= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
 			{
-					set_gate_state(fan, GATE_ACTIVE);
+				set_gate_state(fan, GATE_ACTIVE);
 			}
 			else
 			{
