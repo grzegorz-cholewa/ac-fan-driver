@@ -165,8 +165,8 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 	integral = integral + error;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-	mean_voltage = debug_adc_read/4; // voltage proportional to adc read
-	//mean_voltage = 75; // const value
+	//mean_voltage = debug_adc_read/4; // voltage proportional to adc read
+	mean_voltage = 75; // const value
 	
 	#else // use PID regulator
 	mean_voltage =  - PID_KP * error - PID_KI * integral;
@@ -238,6 +238,17 @@ void update_working_parameters(fan_gate_t * fan)
 	fan->activation_delay_us = get_gate_delay_us(fan->mean_voltage);
 }
 
+void update_working_parameters2(fan_gate_t * fan1, fan_gate_t * fan2, fan_gate_t * fan3)
+{
+	read_temperatures(&sensor_values);
+	fan1->mean_voltage = pid_regulator(sensor_values.temperatures[fan1->main_temp_sensor_index], sensor_values.adc_values[fan1->main_temp_sensor_index]);
+	fan2->mean_voltage = pid_regulator(sensor_values.temperatures[fan2->main_temp_sensor_index], sensor_values.adc_values[fan2->main_temp_sensor_index]);
+	fan3->mean_voltage = pid_regulator(sensor_values.temperatures[fan3->main_temp_sensor_index], sensor_values.adc_values[fan3->main_temp_sensor_index]);
+	fan1->activation_delay_us = get_gate_delay_us(fan1->mean_voltage);
+	fan2->activation_delay_us = get_gate_delay_us(fan2->mean_voltage);
+	fan3->activation_delay_us = get_gate_delay_us(fan3->mean_voltage);
+}
+
 int main (void)
 {
 	work_state = WORK_STATE_AUTO;
@@ -266,9 +277,7 @@ int main (void)
 		}
 		else if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
-			update_working_parameters(&fan1);
-			update_working_parameters(&fan2);
-			update_working_parameters(&fan3);
+			update_working_parameters2(&fan1, &fan2, &fan3);
 			pid_pulse_delay_counter_us = 0;
 		}
 	}
