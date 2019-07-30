@@ -191,21 +191,21 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	if (state == GATE_ACTIVE)
 	{
 		if (fan->index == 0)
-		gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
+			gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
 		if (fan->index == 1)
-		gpio_set_pin_low(FAN2_DRIVE_PIN);
+			gpio_set_pin_low(FAN2_DRIVE_PIN);
 		if (fan->index == 2)
-		gpio_set_pin_low(FAN3_DRIVE_PIN);
+			gpio_set_pin_low(FAN3_DRIVE_PIN);
 	}
 	
 	if (state != GATE_ACTIVE)
 	{
 		if (fan->index == 0)
-		gpio_set_pin_high(FAN1_DRIVE_PIN);
+			gpio_set_pin_high(FAN1_DRIVE_PIN);
 		if (fan->index == 1)
-		gpio_set_pin_high(FAN2_DRIVE_PIN);
+			gpio_set_pin_high(FAN2_DRIVE_PIN);
 		if (fan->index == 2)
-		gpio_set_pin_high(FAN3_DRIVE_PIN);
+			gpio_set_pin_high(FAN3_DRIVE_PIN);
 	}
 }
 
