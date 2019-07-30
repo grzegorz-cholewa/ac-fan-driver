@@ -64,6 +64,8 @@ void update_working_parameters(fan_gate_t * fan);
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan)
 {
+	int temp_gate_pulse_delay_counter_us = gate_pulse_delay_counter_us;
+	
 	switch (work_state)
 	{
 		case WORK_STATE_AUTO:
@@ -80,10 +82,9 @@ void drive_fan(fan_gate_t * fan)
 				break;
 			}
 			
-			if ( (gate_pulse_delay_counter_us >= fan->activation_delay_us) && (gate_pulse_delay_counter_us <= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
+			if ( (temp_gate_pulse_delay_counter_us >= fan->activation_delay_us) && (temp_gate_pulse_delay_counter_us <= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
 			{
-				
-				set_gate_state(fan, GATE_ACTIVE);
+					set_gate_state(fan, GATE_ACTIVE);
 			}
 			else
 			{
@@ -92,11 +93,11 @@ void drive_fan(fan_gate_t * fan)
 			break;
 		}
 		case WORK_STATE_FORCE_FULL_ON:
-		set_gate_state(fan, GATE_ACTIVE);
+			set_gate_state(fan, GATE_ACTIVE);
 		break;
 		
 		case WORK_STATE_FORCE_OFF:
-		set_gate_state(fan, GATE_IDLE);
+			set_gate_state(fan, GATE_IDLE);
 		break;
 	}
 }
@@ -164,8 +165,8 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 	integral = integral + error;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-	// mean_voltage = debug_adc_read/4; // voltage proportional to adc read
-	mean_voltage = 75; // const value
+	mean_voltage = debug_adc_read/4; // voltage proportional to adc read
+	//mean_voltage = 75; // const value
 	
 	#else // use PID regulator
 	mean_voltage =  - PID_KP * error - PID_KI * integral;
@@ -240,9 +241,9 @@ void update_working_parameters(fan_gate_t * fan)
 int main (void)
 {
 	work_state = WORK_STATE_AUTO;
-	fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
-	fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
-	fan_gate_t fan3 = {2, 2, 0, 0, GATE_IDLE};
+	static fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
+	static fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
+	static fan_gate_t fan3 = {2, 2, 0, 0, GATE_IDLE};
 
 	gpio_init();
 	adc_init();
@@ -256,13 +257,6 @@ int main (void)
 	
 	while(1)
 	{
-		if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
-		{
-			update_working_parameters(&fan1);
-			update_working_parameters(&fan2);
-			update_working_parameters(&fan3);
-			pid_pulse_delay_counter_us = 0;
-		}
 		if (drive_triacs_flag_pending == true)
 		{
 			drive_fan(&fan1);
@@ -270,7 +264,13 @@ int main (void)
 			drive_fan(&fan3);
 			drive_triacs_flag_pending = false;		
 		}
-
+		else if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
+		{
+			update_working_parameters(&fan1);
+			update_working_parameters(&fan2);
+			update_working_parameters(&fan3);
+			pid_pulse_delay_counter_us = 0;
+		}
 	}
 }
 
