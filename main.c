@@ -50,7 +50,7 @@ sensors_t sensor_values;
 bool drive_triacs_flag_pending = false;
 
 /* FUNCTION PROTOTYPES */
-void drive_fan(fan_gate_t * fan);
+void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length);
 uint32_t get_gate_delay_us(uint8_t mean_voltage);
 void gpio_init(void);
 void interrupt_init(void);
@@ -59,46 +59,47 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void send_and_indicate_error(void);
-void update_working_parameters(fan_gate_t * fan);
+void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
 
 /* FUNCTION DEFINITIONS */
-void drive_fan(fan_gate_t * fan)
+void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 {
-	int temp_gate_pulse_delay_counter_us = gate_pulse_delay_counter_us;
-	
-	switch (work_state)
+	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
-		case WORK_STATE_AUTO:
+		switch (work_state)
 		{
-			if (fan->mean_voltage<MIN_FAN_VOLTAGE)
+			case WORK_STATE_AUTO:
 			{
-				set_gate_state(fan, GATE_IDLE);
+				if (fan_gate_array[i].mean_voltage<=MIN_FAN_VOLTAGE)
+				{
+					set_gate_state(&fan_gate_array[i], GATE_IDLE);
+					break;
+				}
+				
+				if (fan_gate_array[i].mean_voltage>=MAX_FAN_VOLTAGE)
+				{
+					set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
+					break;
+				}
+				
+				if ( (gate_pulse_delay_counter_us >= fan_gate_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (fan_gate_array[i].activation_delay_us + GATE_PULSE_TIME_US)) )
+				{
+					set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
+				}
+				else
+				{
+					set_gate_state(&fan_gate_array[i], GATE_IDLE);
+				}
 				break;
 			}
+			case WORK_STATE_FORCE_FULL_ON:
+			set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
+			break;
 			
-			if (fan->mean_voltage>=MAX_FAN_VOLTAGE)
-			{
-				set_gate_state(fan, GATE_ACTIVE);
-				break;
-			}
-			
-			if ( (temp_gate_pulse_delay_counter_us >= fan->activation_delay_us) && (temp_gate_pulse_delay_counter_us <= (fan->activation_delay_us + GATE_PULSE_TIME_US)) )
-			{
-				set_gate_state(fan, GATE_ACTIVE);
-			}
-			else
-			{
-				set_gate_state(fan, GATE_IDLE);
-			}
+			case WORK_STATE_FORCE_OFF:
+			set_gate_state(&fan_gate_array[i], GATE_IDLE);
 			break;
 		}
-		case WORK_STATE_FORCE_FULL_ON:
-			set_gate_state(fan, GATE_ACTIVE);
-		break;
-		
-		case WORK_STATE_FORCE_OFF:
-			set_gate_state(fan, GATE_IDLE);
-		break;
 	}
 }
 
@@ -231,30 +232,22 @@ void send_and_indicate_error(void)
 }
 
 
-void update_working_parameters(fan_gate_t * fan)
+void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length)
 {
 	read_temperatures(&sensor_values);
-	fan->mean_voltage = pid_regulator(sensor_values.temperatures[fan->main_temp_sensor_index], sensor_values.adc_values[fan->main_temp_sensor_index]);
-	fan->activation_delay_us = get_gate_delay_us(fan->mean_voltage);
-}
-
-void update_working_parameters2(fan_gate_t * fan1, fan_gate_t * fan2, fan_gate_t * fan3)
-{
-	read_temperatures(&sensor_values);
-	fan1->mean_voltage = pid_regulator(sensor_values.temperatures[fan1->main_temp_sensor_index], sensor_values.adc_values[fan1->main_temp_sensor_index]);
-	fan2->mean_voltage = pid_regulator(sensor_values.temperatures[fan2->main_temp_sensor_index], sensor_values.adc_values[fan2->main_temp_sensor_index]);
-	fan3->mean_voltage = pid_regulator(sensor_values.temperatures[fan3->main_temp_sensor_index], sensor_values.adc_values[fan3->main_temp_sensor_index]);
-	fan1->activation_delay_us = get_gate_delay_us(fan1->mean_voltage);
-	fan2->activation_delay_us = get_gate_delay_us(fan2->mean_voltage);
-	fan3->activation_delay_us = get_gate_delay_us(fan3->mean_voltage);
+	
+	for (uint8_t i = 0; i < FAN_NUMBER; i++)
+	{
+		fan_gate_array[i].mean_voltage = pid_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
+		fan_gate_array[i].activation_delay_us = get_gate_delay_us(fan_gate_array[i].mean_voltage);
+	}
 }
 
 int main (void)
 {
 	work_state = WORK_STATE_AUTO;
-	static fan_gate_t fan1 = {0, 0, 0, 0, GATE_IDLE};
-	static fan_gate_t fan2 = {1, 1, 0, 0, GATE_IDLE};
-	static fan_gate_t fan3 = {2, 2, 0, 0, GATE_IDLE};
+		
+	static fan_gate_t fan_gate_array[FAN_NUMBER] = {{0, 0, 0, 0, GATE_IDLE}, {1, 1, 0, 0, GATE_IDLE}, {2, 2, 0, 0, GATE_IDLE}};
 
 	gpio_init();
 	adc_init();
@@ -262,22 +255,18 @@ int main (void)
 	led_blink(3, 300);
 	
 	timer_start(TRIAC_DRIVING_RESOLUTION_US);
-	update_working_parameters(&fan1);
-	update_working_parameters(&fan2);
-	update_working_parameters(&fan3);
+	update_working_parameters(fan_gate_array, FAN_NUMBER);
 	
 	while(1)
 	{
 		if (drive_triacs_flag_pending == true)
 		{
-			drive_fan(&fan1);
-			drive_fan(&fan2);
-			drive_fan(&fan3);
+			drive_fan(fan_gate_array, FAN_NUMBER);
 			drive_triacs_flag_pending = false;		
 		}
 		else if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
-			update_working_parameters2(&fan1, &fan2, &fan3);
+			update_working_parameters(fan_gate_array, FAN_NUMBER);
 			pid_pulse_delay_counter_us = 0;
 		}
 	}
