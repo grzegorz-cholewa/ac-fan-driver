@@ -47,8 +47,6 @@ uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
-bool drive_triacs_flag_pending = false;
-bool triac_pulse_pending = false;
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length);
@@ -86,11 +84,8 @@ void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 				
 				if ( (gate_pulse_delay_counter_us >= fan_gate_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (fan_gate_array[i].activation_delay_us + GATE_PULSE_TIME_US)) )
 				{
-					if (triac_pulse_pending == true)
-					{
-						set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
-						triac_pulse_pending = false;
-					}
+
+					set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
 				}
 				else
 				{
@@ -271,12 +266,9 @@ int main (void)
 	
 	while(1)
 	{
-		if (drive_triacs_flag_pending == true)
-		{
-			drive_fan(fan_gate_array, FAN_NUMBER);
-			drive_triacs_flag_pending = false;		
-		}
-		else if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
+		drive_fan(fan_gate_array, FAN_NUMBER);		
+		
+		if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
 			update_working_parameters(fan_gate_array, FAN_NUMBER);
 			pid_pulse_delay_counter_us = 0;
@@ -287,7 +279,6 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect)
 {
-	triac_pulse_pending = true;
 	gate_pulse_delay_counter_us = 0;
 	
 }
@@ -297,5 +288,4 @@ ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
 	pid_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
-	drive_triacs_flag_pending = true;
 }
