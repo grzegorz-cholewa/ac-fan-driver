@@ -2,11 +2,9 @@
 /* The driver is based on ATMega328 and the purpose is to drive AC regulator circuit for 2 AC fans */
 /* depending on readings from zero-crossing detection input and voltages from 6 thermistors */
 
-/* STANDARD INCLUDES */
+/* INCLUDES */
 #include <asf.h>
 #include <math.h> 
-
-/* MODULES */
 #include <config.h>
 #include <temperature.h>
 
@@ -55,10 +53,9 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 {
-	
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
-		cli();
+		cli(); // enter critical section
 		switch (work_state)
 		{
 			case WORK_STATE_AUTO:
@@ -94,9 +91,8 @@ void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 			set_gate_state(&fan_gate_array[i], GATE_IDLE);
 			break;
 		}
-		sei();
+		sei(); // leave critical section
 	}
-	
 }
 
 uint32_t get_gate_delay_us(uint8_t mean_voltage)
