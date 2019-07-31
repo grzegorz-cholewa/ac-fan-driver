@@ -55,9 +55,10 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 {
-	cli();
+	
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
+		cli();
 		switch (work_state)
 		{
 			case WORK_STATE_AUTO:
@@ -93,8 +94,9 @@ void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 			set_gate_state(&fan_gate_array[i], GATE_IDLE);
 			break;
 		}
+		sei();
 	}
-	sei();
+	
 }
 
 uint32_t get_gate_delay_us(uint8_t mean_voltage)

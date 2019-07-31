@@ -19,7 +19,7 @@
 #define FAN_NUMBER 3
 #define HALF_SINE_PERIOD_US 10000
 #define GATE_DRIVING_TIMER_RESOLUTION_US 100
-#define ZERO_CROSSING_OFFSET_US 260
+#define ZERO_CROSSING_OFFSET_US 260 // for now it is measured value
 #define GATE_PULSE_TIME_US 100
 #define MIN_FAN_VOLTAGE 50 // this is min value for triac gate driver
 #define MAX_FAN_VOLTAGE 225 // // this is max value for triac gate driver
@@ -32,7 +32,7 @@
 #define TARGET_TEMPERATURE 70
 #define PID_KP 1
 #define PID_TIME_CONST_S 5
-#define WORKING_PARAMETERS_UPDATE_PERIOD_US 100000
+#define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000
 #define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
 
 /* CONSTANTS */
