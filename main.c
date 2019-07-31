@@ -10,14 +10,6 @@
 #include <config.h>
 #include <temperature.h>
 
-/* PIN DEFINITIONS */
-#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
-#define LED_RED_PIN IOPORT_CREATE_PIN(PORTD, 3)
-#define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // a source for INT0 interrupt
-#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
-#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
-#define FAN3_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 7) // signal for gate of triac driving fan3
-
 /* TYPE DEFINITIONS */
 typedef enum
 {
@@ -34,7 +26,7 @@ typedef enum
 
 typedef struct 
 {
-	const uint8_t index; // index
+	port_pin_t pin;
 	const uint8_t main_temp_sensor_index;
 	uint32_t mean_voltage; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
@@ -168,7 +160,7 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 	integral = integral + error;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-	mean_voltage = debug_adc_read/4; // voltage proportional to adc read
+	mean_voltage = debug_adc_read/4; // voltage proportional to ADC read
 	//mean_voltage = 75; // const value
 	
 	#else // use PID regulator
@@ -195,22 +187,12 @@ void set_gate_state(fan_gate_t * fan, gate_state_t state)
 	
 	if (state == GATE_ACTIVE)
 	{
-		if (fan->index == 0)
-			gpio_set_pin_low(FAN1_DRIVE_PIN); // optotransistor is active low
-		if (fan->index == 1)
-			gpio_set_pin_low(FAN2_DRIVE_PIN);
-		if (fan->index == 2)
-			gpio_set_pin_low(FAN3_DRIVE_PIN);
+		gpio_set_pin_low(fan->pin); // optotransistor is active low
 	}
 	
 	if (state != GATE_ACTIVE)
 	{
-		if (fan->index == 0)
-			gpio_set_pin_high(FAN1_DRIVE_PIN);
-		if (fan->index == 1)
-			gpio_set_pin_high(FAN2_DRIVE_PIN);
-		if (fan->index == 2)
-			gpio_set_pin_high(FAN3_DRIVE_PIN);
+		gpio_set_pin_high(fan->pin);
 	}
 }
 
@@ -241,11 +223,6 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
 		fan_gate_array[i].mean_voltage = pid_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
-		//fan_gate_array[i].activation_delay_us = get_gate_delay_us(fan_gate_array[i].mean_voltage);
-	}
-	for (uint8_t i = 0; i < FAN_NUMBER; i++)
-	{
-		//fan_gate_array[i].mean_voltage = pid_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
 		fan_gate_array[i].activation_delay_us = get_gate_delay_us(fan_gate_array[i].mean_voltage);
 	}
 }
@@ -254,14 +231,14 @@ int main (void)
 {
 	work_state = WORK_STATE_AUTO;
 		
-	static fan_gate_t fan_gate_array[FAN_NUMBER] = {{0, 0, 0, 0, GATE_IDLE}, {1, 1, 0, 0, GATE_IDLE}, {2, 2, 0, 0, GATE_IDLE}};
+	static fan_gate_t fan_gate_array[FAN_NUMBER] = {{FAN1_DRIVE_PIN, 0, 0, 0, GATE_IDLE}, {FAN2_DRIVE_PIN, 1, 0, 0, GATE_IDLE}, {FAN3_DRIVE_PIN, 2, 0, 0, GATE_IDLE}};
 
 	gpio_init();
 	adc_init();
 	interrupt_init();
 	led_blink(3, 300);
 	
-	timer_start(TRIAC_DRIVING_RESOLUTION_US);
+	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(fan_gate_array, FAN_NUMBER);
 	
 	while(1)
@@ -280,12 +257,11 @@ int main (void)
 ISR (INT0_vect)
 {
 	gate_pulse_delay_counter_us = 0;
-	
 }
 
 /* ISR for periodical timer overflow */
 ISR (TIMER1_COMPA_vect)
 {
-	gate_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
-	pid_pulse_delay_counter_us += TRIAC_DRIVING_RESOLUTION_US;
+	gate_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
+	pid_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
 }
