@@ -48,6 +48,7 @@ uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
 bool drive_triacs_flag_pending = false;
+bool triac_pulse_pending = false;
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length);
@@ -64,6 +65,7 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 {
+	cli();
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
 		switch (work_state)
@@ -84,7 +86,11 @@ void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 				
 				if ( (gate_pulse_delay_counter_us >= fan_gate_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (fan_gate_array[i].activation_delay_us + GATE_PULSE_TIME_US)) )
 				{
-					set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
+					if (triac_pulse_pending == true)
+					{
+						set_gate_state(&fan_gate_array[i], GATE_ACTIVE);
+						triac_pulse_pending = false;
+					}
 				}
 				else
 				{
@@ -101,6 +107,7 @@ void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
 			break;
 		}
 	}
+	sei();
 }
 
 uint32_t get_gate_delay_us(uint8_t mean_voltage)
@@ -166,8 +173,8 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 	integral = integral + error;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-	//mean_voltage = debug_adc_read/4; // voltage proportional to adc read
-	mean_voltage = 75; // const value
+	mean_voltage = debug_adc_read/4; // voltage proportional to adc read
+	//mean_voltage = 75; // const value
 	
 	#else // use PID regulator
 	mean_voltage =  - PID_KP * error - PID_KI * integral;
@@ -239,6 +246,11 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
 		fan_gate_array[i].mean_voltage = pid_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
+		//fan_gate_array[i].activation_delay_us = get_gate_delay_us(fan_gate_array[i].mean_voltage);
+	}
+	for (uint8_t i = 0; i < FAN_NUMBER; i++)
+	{
+		//fan_gate_array[i].mean_voltage = pid_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
 		fan_gate_array[i].activation_delay_us = get_gate_delay_us(fan_gate_array[i].mean_voltage);
 	}
 }
@@ -275,7 +287,9 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect)
 {
+	triac_pulse_pending = true;
 	gate_pulse_delay_counter_us = 0;
+	
 }
 
 /* ISR for periodical timer overflow */
