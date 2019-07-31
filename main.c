@@ -16,7 +16,7 @@ typedef enum
 	WORK_STATE_FORCE_OFF,
 	WORK_STATE_FORCE_FULL_ON,
 	WORK_STATE_AUTO
-} module_work_state;
+} module_work_state_t;
 
 typedef enum 
 {
@@ -34,7 +34,7 @@ typedef struct
 } fan_gate_t;
 
 /* GLOBAL VARIABLES */
-module_work_state work_state = WORK_STATE_FORCE_OFF;
+module_work_state_t work_state = WORK_STATE_FORCE_OFF;
 uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
