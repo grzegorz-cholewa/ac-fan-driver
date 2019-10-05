@@ -8,8 +8,7 @@
 #define CONFIG_H_
 
 /* PIN DEFINITIONS */
-#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED (TBD: remove)
-#define LED_RED_PIN IOPORT_CREATE_PIN(PORTD, 3) // red LED for error indication
+#define LED_PIN IOPORT_CREATE_PIN(PORTD, 3) // evalboard LED (TBD: remove)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // source for INT0 interrupt
 #define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
 #define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
