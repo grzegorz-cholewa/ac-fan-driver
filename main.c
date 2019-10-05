@@ -33,7 +33,6 @@ typedef struct
 
 /* GLOBAL VARIABLES */
 module_work_state_t work_state = WORK_STATE_FORCE_OFF;
-uint32_t clock_speed = 16000000;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
@@ -198,7 +197,7 @@ void timer_start(uint32_t time_us)
 {
 	uint32_t prescaler_value = 8;
 	uint32_t second_us = 1000000;
-	uint8_t value = time_us*(clock_speed/prescaler_value)/second_us-1; // for 100us timer value is 199
+	uint8_t value = time_us*(F_CPU/prescaler_value)/second_us-1; // for 100us timer value is 199
 	
 	OCR1A = value;
 	TCCR1B |= (1 << WGM12); // Mode 4, CTC on OCR1A
@@ -210,7 +209,7 @@ void timer_start(uint32_t time_us)
 void send_and_indicate_error(void)
 {
 	// TBD send error to main MCU
-	LED_On(LED_RED_PIN);	
+	// led_blink(1, 200);	
 }
 
 
@@ -234,7 +233,7 @@ int main (void)
 	gpio_init();
 	adc_init();
 	interrupt_init();
-	led_blink(3, 300);
+	led_blink(3, 200);
 	
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(fan_gate_array, FAN_NUMBER);
@@ -247,6 +246,7 @@ int main (void)
 		{
 			update_working_parameters(fan_gate_array, FAN_NUMBER);
 			pid_pulse_delay_counter_us = 0;
+			led_blink(1, 100);  // for debug only
 		}
 	}
 }
