@@ -120,7 +120,7 @@ void gpio_init(void)
 
 void interrupt_init(void)
 {
-	EICRA |= (1 << ISC01 || 1 << ISC00);    // set INT0 to trigger on rising edge
+	EICRA |= (1 << ISC00 ) | (1 << ISC01);    // set INT0 to trigger on rising edge
 	EIMSK |= (1 << INT0);     // activates INT0
 	sei();                    // turn on interrupts
 }
