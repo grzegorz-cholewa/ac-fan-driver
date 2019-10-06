@@ -246,7 +246,6 @@ int main (void)
 		{
 			update_working_parameters(fan_gate_array, FAN_NUMBER);
 			pid_pulse_delay_counter_us = 0;
-			led_blink(1, 100);  // for debug only
 		}
 	}
 }
