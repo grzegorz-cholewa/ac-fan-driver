@@ -11,9 +11,10 @@
 #define LED_PIN IOPORT_CREATE_PIN(PORTD, 3)
 //#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED (TBD: remove)
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // source for INT0 interrupt
-#define FAN1_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
-#define FAN2_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
-#define FAN3_DRIVE_PIN IOPORT_CREATE_PIN(PORTD, 7) // signal for gate of triac driving fan3
+#define FAN1_DRIVE_PIN			IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
+#define FAN2_DRIVE_PIN			IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
+#define FAN3_DRIVE_PIN			IOPORT_CREATE_PIN(PORTD, 7) // signal for gate of triac driving fan3
+#define RS_DRIVER_ENABLE_PIN	IOPORT_CREATE_PIN(PORTB, 0) // driver enable control pin (high is driver enable)
 
 /* WORKING PARAMETERS */
 #define FAN_NUMBER 3
@@ -33,7 +34,12 @@
 #define PID_KP 1
 #define PID_TIME_CONST_S 5
 #define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000
-#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
+
+/* UART PARAMETERS */
+#define UART_BAUD_RATE 9600
+#define MYUBRR (F_CPU/16/UART_BAUD_RATE - 1)
+
+//#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
 
 /* CONSTANTS */
 #define PI (3.14)

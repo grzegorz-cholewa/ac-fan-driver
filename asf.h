@@ -80,4 +80,7 @@
 // From module: System Clock Control - MEGA RF A1 implementation
 #include <sysclk.h>
 
+// From module: USART - Universal Synchronous/Asynchronous Receiver/Transmitter
+// #include <usart_mega.h>
+
 #endif // ASF_H

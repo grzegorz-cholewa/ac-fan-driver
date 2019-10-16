@@ -48,6 +48,10 @@ void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void send_and_indicate_error(void);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
+void usart_init(void);
+void usart_transmit(unsigned char);
+void rs_driver_enable(void);
+void rs_receiver_enable(void);
 
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
@@ -116,6 +120,7 @@ void gpio_init(void)
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
+	ioport_configure_pin(RS_DRIVER_ENABLE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 }
 
 void interrupt_init(void)
@@ -224,16 +229,49 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 	}
 }
 
+void usart_init(void)
+{
+	/*Set baud rate */
+	UBRR0H = (unsigned char)(MYUBRR>>8);
+	UBRR0L = (unsigned char)MYUBRR;
+	UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
+	UCSR0C = (1<<USBS0)|(3<<UCSZ00); // set frame format: 8data, 2stop bit
+}
+
+void usart_transmit(unsigned char data)
+{
+	/* Wait for empty transmit buffer */
+	while (!(UCSR0A & (1<<UDRE0)))
+	;
+	/* Put data into buffer, sends the data */
+	UDR0 = data;
+}
+
+void rs_driver_enable(void)
+{
+	gpio_set_pin_high(RS_DRIVER_ENABLE_PIN);
+}
+
+void rs_receiver_enable(void)
+{
+	gpio_set_pin_low(RS_DRIVER_ENABLE_PIN);
+}
+
+
 int main (void)
 {
 	work_state = WORK_STATE_AUTO;
-		
-	static fan_gate_t fan_gate_array[FAN_NUMBER] = {{FAN1_DRIVE_PIN, 0, 0, 0, GATE_IDLE}, {FAN2_DRIVE_PIN, 1, 0, 0, GATE_IDLE}, {FAN3_DRIVE_PIN, 2, 0, 0, GATE_IDLE}};
 
+	static fan_gate_t fan_gate_array[FAN_NUMBER] = {{FAN1_DRIVE_PIN, 0, 0, 0, GATE_IDLE}, {FAN2_DRIVE_PIN, 1, 0, 0, GATE_IDLE}, {FAN3_DRIVE_PIN, 2, 0, 0, GATE_IDLE}};
+	
 	gpio_init();
+	usart_init();
 	adc_init();
 	interrupt_init();
 	led_blink(3, 200);
+	
+	rs_driver_enable();
+	usart_transmit('a');
 	
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(fan_gate_array, FAN_NUMBER);
