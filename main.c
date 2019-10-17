@@ -50,8 +50,8 @@ void send_and_indicate_error(void);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
 void usart_init(void);
 void usart_transmit(unsigned char);
-void rs_driver_enable(void);
-void rs_receiver_enable(void);
+void rs_transmitter_enable(void);
+void rs_transmitter_disable(void);
 
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
@@ -120,7 +120,7 @@ void gpio_init(void)
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
-	ioport_configure_pin(RS_DRIVER_ENABLE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
+	ioport_configure_pin(RS_DRIVER_ENABLE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
 }
 
 void interrupt_init(void)
@@ -247,14 +247,26 @@ void usart_transmit(unsigned char data)
 	UDR0 = data;
 }
 
-void rs_driver_enable(void)
+void rs_transmitter_enable(void)
 {
 	gpio_set_pin_high(RS_DRIVER_ENABLE_PIN);
 }
 
-void rs_receiver_enable(void)
+void rs_transmitter_disable(void)
 {
 	gpio_set_pin_low(RS_DRIVER_ENABLE_PIN);
+}
+
+void uart_test(void)
+{
+	while(1)
+	{
+		rs_transmitter_enable();
+		led_blink(1, 200);
+		usart_transmit(0x71);
+		rs_transmitter_disable();
+		delay_ms(1000);
+	}
 }
 
 
@@ -270,8 +282,7 @@ int main (void)
 	interrupt_init();
 	led_blink(3, 200);
 	
-	rs_driver_enable();
-	usart_transmit('a');
+	uart_test();
 	
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(fan_gate_array, FAN_NUMBER);
