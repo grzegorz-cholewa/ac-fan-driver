@@ -8,8 +8,13 @@
 #define CONFIG_H_
 
 /* PIN DEFINITIONS */
-#define LED_PIN IOPORT_CREATE_PIN(PORTD, 3)
-//#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED (TBD: remove)
+//#define ON_EVALBOARD 1
+#ifdef ON_EVALBOARD
+	#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
+#else
+	#define LED_PIN IOPORT_CREATE_PIN(PORTD, 3)
+#endif
+
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // source for INT0 interrupt
 #define FAN1_DRIVE_PIN			IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
 #define FAN2_DRIVE_PIN			IOPORT_CREATE_PIN(PORTD, 6) // signal for gate of triac driving fan2
@@ -40,6 +45,7 @@
 #define MYUBRR (F_CPU/16/UART_BAUD_RATE - 1)
 
 //#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
+#define SEND_DEBUG_INFO_OVER_RS 1
 
 /* CONSTANTS */
 #define PI (3.14)

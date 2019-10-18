@@ -81,6 +81,9 @@
 #include <sysclk.h>
 
 // From module: USART - Universal Synchronous/Asynchronous Receiver/Transmitter
-// #include <usart_mega.h>
+ #include <usart_mega.h>
+ 
+  
+ #include <stdio.h>
 
 #endif // ASF_H

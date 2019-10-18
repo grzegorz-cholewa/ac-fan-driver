@@ -49,9 +49,11 @@ void timer_start(uint32_t time_us);
 void send_and_indicate_error(void);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
 void usart_init(void);
-void usart_transmit(unsigned char);
+void uart_transmit_char(unsigned char);
+void uart_transmit_string(char * string);
 void rs_transmitter_enable(void);
 void rs_transmitter_disable(void);
+void send_debug_info(fan_gate_t * fan_gate_array);
 
 /* FUNCTION DEFINITIONS */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length)
@@ -126,8 +128,8 @@ void gpio_init(void)
 void interrupt_init(void)
 {
 	EICRA |= (1 << ISC00 ) | (1 << ISC01);    // set INT0 to trigger on rising edge
-	EIMSK |= (1 << INT0);     // activates INT0
-	sei();                    // turn on interrupts
+	EIMSK |= (1 << INT0);     // activate INT0
+	sei();                    // activate interrupts
 }
 
 void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
@@ -213,10 +215,9 @@ void timer_start(uint32_t time_us)
 
 void send_and_indicate_error(void)
 {
-	// TBD send error to main MCU
+	// TBD drive error pin
 	// led_blink(1, 200);	
 }
-
 
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length)
 {
@@ -236,15 +237,28 @@ void usart_init(void)
 	UBRR0L = (unsigned char)MYUBRR;
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
 	UCSR0C = (1<<USBS0)|(3<<UCSZ00); // set frame format: 8data, 2stop bit
+	
+	UCSR0B |= USART_TXC_bm; // enable tx complete interrupt
 }
 
-void usart_transmit(unsigned char data)
+void uart_transmit_char(unsigned char data)
 {
-	/* Wait for empty transmit buffer */
-	while (!(UCSR0A & (1<<UDRE0)))
+	rs_transmitter_enable();
+	
+	while (!(UCSR0A & (1<<UDRE0))) // wait for empty transmit buffer 
 	;
 	/* Put data into buffer, sends the data */
 	UDR0 = data;
+}
+
+void uart_transmit_string(char * string)
+{
+	uint32_t i = 0;
+	while (string[i] != 0x00)
+	{
+		uart_transmit_char(string[i]);
+		i++;
+	}
 }
 
 void rs_transmitter_enable(void)
@@ -257,16 +271,21 @@ void rs_transmitter_disable(void)
 	gpio_set_pin_low(RS_DRIVER_ENABLE_PIN);
 }
 
-void uart_test(void)
+void send_debug_info(fan_gate_t * fan_gate_array)
 {
-	while(1)
-	{
-		rs_transmitter_enable();
-		led_blink(1, 200);
-		usart_transmit(0x71);
-		rs_transmitter_disable();
-		delay_ms(1000);
-	}
+	char debug_info[50];
+	snprintf(debug_info, sizeof(debug_info), "NTC1 temp: %d\n", sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index]);
+	uart_transmit_string(debug_info);
+	snprintf(debug_info, sizeof(debug_info), "NTC2 temp: %d\n", sensor_values.temperatures[fan_gate_array[1].main_temp_sensor_index]);
+	uart_transmit_string(debug_info);
+	snprintf(debug_info, sizeof(debug_info), "NTC3 temp: %d\n", sensor_values.temperatures[fan_gate_array[2].main_temp_sensor_index]);
+	uart_transmit_string(debug_info);
+	snprintf(debug_info, sizeof(debug_info), "FAN1 voltage: %ld\n", fan_gate_array[0].mean_voltage);
+	uart_transmit_string(debug_info);
+	snprintf(debug_info, sizeof(debug_info), "FAN2 voltage: %ld\n", fan_gate_array[1].mean_voltage);
+	uart_transmit_string(debug_info);
+	snprintf(debug_info, sizeof(debug_info), "FAN3 voltage: %ld\n", fan_gate_array[2].mean_voltage);
+	uart_transmit_string(debug_info);
 }
 
 
@@ -280,10 +299,8 @@ int main (void)
 	usart_init();
 	adc_init();
 	interrupt_init();
-	led_blink(3, 200);
-	
-	uart_test();
-	
+	led_blink(3, 50);
+
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(fan_gate_array, FAN_NUMBER);
 	
@@ -295,6 +312,9 @@ int main (void)
 		{
 			update_working_parameters(fan_gate_array, FAN_NUMBER);
 			pid_pulse_delay_counter_us = 0;
+			#ifdef SEND_DEBUG_INFO_OVER_RS
+				send_debug_info(fan_gate_array);
+			#endif
 		}
 	}
 }
@@ -310,4 +330,9 @@ ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
 	pid_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
+}
+
+ISR(USART0_TX_vect) // USART TX compete interrupt
+{
+	// rs_transmitter_disable();
 }
