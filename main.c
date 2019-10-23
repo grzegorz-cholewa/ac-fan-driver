@@ -40,6 +40,7 @@ uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
 char uart_tx_buffer[200];
+bool modbus_request_pending = false;
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length);
@@ -53,7 +54,7 @@ void timer_start(uint32_t time_us);
 void send_and_indicate_error(void);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
 void usart_init(void);
-void uart_transmit_char(unsigned char);
+void uart_transmit_byte(unsigned char);
 void uart_transmit_string(char * string);
 void rs_transmitter_enable(void);
 void rs_transmitter_disable(void);
@@ -245,10 +246,8 @@ void usart_init(void)
 	UCSR0B |= USART_TXC_bm; // enable tx complete interrupt
 }
 
-void uart_transmit_char(unsigned char data)
+void uart_transmit_byte(unsigned char data)
 {
-	rs_transmitter_enable();
-	
 	while (!(UCSR0A & (1<<UDRE0))) // wait for empty transmit buffer 
 	;
 
@@ -258,7 +257,8 @@ void uart_transmit_char(unsigned char data)
 void uart_transmit_string(char * string_to_send)
 {
 	memcpy(uart_tx_buffer, string_to_send, sizeof(uart_tx_buffer));
-	uart_transmit_char('\n'); // first char is needed to make TX interrupt finished work
+	rs_transmitter_enable();
+	uart_transmit_byte('\n'); // first char is needed to make TX interrupt finished work
 }
 
 void rs_transmitter_enable(void)
@@ -275,10 +275,19 @@ void send_debug_info(fan_gate_t * fan_gate_array)
 {
 	char debug_info[sizeof(uart_tx_buffer)];
 	snprintf(debug_info, sizeof(debug_info), 
-		"NTC1 temp: %d\nNTC2 temp: %d\nNTC3 temp: %d\nFAN1 voltage: %ld\nFAN2 voltage: %ld\nFAN3 voltage: %ld\n", 
+		"TH1: %d/1024 %dC\nTH2: %d/1024 %dC\nTH3: %d/1024 %dC\nTH4: %d/1024 %dC\nTH5: %d/1024 %dC\nTH6: %d/1024 %dC\nFAN1: %ldV\nFAN2: %ldV\nFAN3: %ldV\n", 
 		sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index],
+		sensor_values.adc_values[fan_gate_array[0].main_temp_sensor_index],
 		sensor_values.temperatures[fan_gate_array[1].main_temp_sensor_index],
+		sensor_values.adc_values[fan_gate_array[1].main_temp_sensor_index],
 		sensor_values.temperatures[fan_gate_array[2].main_temp_sensor_index],
+		sensor_values.adc_values[fan_gate_array[2].main_temp_sensor_index],
+		sensor_values.temperatures[fan_gate_array[3].main_temp_sensor_index],
+		sensor_values.adc_values[fan_gate_array[3].main_temp_sensor_index],
+		sensor_values.temperatures[fan_gate_array[4].main_temp_sensor_index],
+		sensor_values.adc_values[fan_gate_array[4].main_temp_sensor_index],
+		sensor_values.temperatures[fan_gate_array[5].main_temp_sensor_index],
+		sensor_values.adc_values[fan_gate_array[5].main_temp_sensor_index],
 		fan_gate_array[0].mean_voltage,
 		fan_gate_array[1].mean_voltage,
 		fan_gate_array[2].mean_voltage );
@@ -288,17 +297,16 @@ void send_debug_info(fan_gate_t * fan_gate_array)
 
 int main (void)
 {
-	work_state = WORK_STATE_AUTO;
-
 	static fan_gate_t fan_gate_array[FAN_NUMBER] = {{FAN1_DRIVE_PIN, 0, 0, 0, GATE_IDLE}, {FAN2_DRIVE_PIN, 1, 0, 0, GATE_IDLE}, {FAN3_DRIVE_PIN, 2, 0, 0, GATE_IDLE}};
 	
 	gpio_init();
-	usart_init();
 	adc_init();
 	interrupt_init();
+	usart_init();
 	led_blink(3, 50);
-
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
+	
+	work_state = WORK_STATE_AUTO;
 	update_working_parameters(fan_gate_array, FAN_NUMBER);
 	
 	while(1)
@@ -313,8 +321,15 @@ int main (void)
 				send_debug_info(fan_gate_array);
 			#endif
 		}
+		
+		if (modbus_request_pending == true)
+		{
+			// TBD: prepare response for modbus request
+		}
+		
 	}
 }
+
 
 /* ISR for zero-crossing detection */
 ISR (INT0_vect)
@@ -329,23 +344,25 @@ ISR (TIMER1_COMPA_vect)
 	pid_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
 }
 
-ISR(USART0_TX_vect) // USART TX complete interrupt
+/* ISR for UART TX complete interrupt */ 
+ISR(USART0_TX_vect) 
 {
 	static uint16_t buffer_index = 0;
 	if (uart_tx_buffer[buffer_index] != 0x00)
 	{
-		uart_transmit_char(uart_tx_buffer[buffer_index]);
+		uart_transmit_byte(uart_tx_buffer[buffer_index]);
 		buffer_index++;
 	}
 	else
 	{
 		 buffer_index = 0;
-		 // rs_transmitter_disable();
+		 rs_transmitter_disable();
 	}
-	
 }
 
+/* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
-	led_blink(1, 50);
+	// if (//check if request is for this device )
+		// modbus_request_pending = true;
 }
