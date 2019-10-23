@@ -40,7 +40,8 @@ uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
 char uart_tx_buffer[200];
-bool modbus_request_pending = false;
+bool modbus_request_pending_flag = false;
+bool error_flag = false;
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length);
@@ -51,7 +52,6 @@ void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
-void send_and_indicate_error(void);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
 void usart_init(void);
 void uart_transmit_byte(unsigned char);
@@ -158,11 +158,11 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
 
 	if(current_temp < MIN_WORKING_TEMPERATURE) // system error: temperature too low
 	{
-		send_and_indicate_error();
+		error_flag = true;
 	}
 	else if(current_temp > MAX_WORKING_TEMPERATURE) // system error: temperature too high
 	{
-		send_and_indicate_error();
+		error_flag = true;
 	}
 	
 	error = TARGET_TEMPERATURE - current_temp; // negative number means that temperature is higher then target
@@ -216,12 +216,6 @@ void timer_start(uint32_t time_us)
 	TIMSK1 |= (1 << OCIE1A); // set interrupt on compare match
 	TCCR1B |= (1 << CS11); // set prescaler
 	sei(); // enable interrupts
-}
-
-void send_and_indicate_error(void)
-{
-	// TBD drive error pin
-	// led_blink(1, 200);	
 }
 
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length)
@@ -322,7 +316,7 @@ int main (void)
 			#endif
 		}
 		
-		if (modbus_request_pending == true)
+		if (modbus_request_pending_flag == true)
 		{
 			// TBD: prepare response for modbus request
 		}
