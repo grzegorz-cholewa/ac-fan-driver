@@ -273,18 +273,15 @@ void rs_transmitter_disable(void)
 
 void send_debug_info(fan_gate_t * fan_gate_array)
 {
-	char debug_info[50];
-	snprintf(debug_info, sizeof(debug_info), "NTC1 temp: %d\n", sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index]);
-	uart_transmit_string(debug_info);
-	snprintf(debug_info, sizeof(debug_info), "NTC2 temp: %d\n", sensor_values.temperatures[fan_gate_array[1].main_temp_sensor_index]);
-	uart_transmit_string(debug_info);
-	snprintf(debug_info, sizeof(debug_info), "NTC3 temp: %d\n", sensor_values.temperatures[fan_gate_array[2].main_temp_sensor_index]);
-	uart_transmit_string(debug_info);
-	snprintf(debug_info, sizeof(debug_info), "FAN1 voltage: %ld\n", fan_gate_array[0].mean_voltage);
-	uart_transmit_string(debug_info);
-	snprintf(debug_info, sizeof(debug_info), "FAN2 voltage: %ld\n", fan_gate_array[1].mean_voltage);
-	uart_transmit_string(debug_info);
-	snprintf(debug_info, sizeof(debug_info), "FAN3 voltage: %ld\n", fan_gate_array[2].mean_voltage);
+	char debug_info[150];
+	snprintf(debug_info, sizeof(debug_info), 
+		"NTC1 temp: %d\nNTC2 temp: %d\nNTC3 temp: %d\nFAN1 voltage: %ld\nFAN2 voltage: %ld\nFAN3 voltage: %ld\n\n", 
+		sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index],
+		sensor_values.temperatures[fan_gate_array[1].main_temp_sensor_index],
+		sensor_values.temperatures[fan_gate_array[2].main_temp_sensor_index],
+		fan_gate_array[0].mean_voltage,
+		fan_gate_array[1].mean_voltage,
+		fan_gate_array[2].mean_voltage );
 	uart_transmit_string(debug_info);
 }
 
