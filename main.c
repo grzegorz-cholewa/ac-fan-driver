@@ -335,4 +335,10 @@ ISR (TIMER1_COMPA_vect)
 ISR(USART0_TX_vect) // USART TX compete interrupt
 {
 	// rs_transmitter_disable();
+}	 //rs_transmitter_disable();
+}
+
+ISR(USART0_RX_vect)
+{
+	led_blink(1, 50);
 }
