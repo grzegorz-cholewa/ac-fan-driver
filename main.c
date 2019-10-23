@@ -3,10 +3,13 @@
 /* depending on readings from zero-crossing detection input and voltages from 6 thermistors */
 
 /* INCLUDES */
-#include <asf.h>
-#include <math.h> 
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <asf.h> 
 #include <config.h>
 #include <temperature.h>
+
 
 /* TYPE DEFINITIONS */
 typedef enum
@@ -36,6 +39,7 @@ module_work_state_t work_state = WORK_STATE_FORCE_OFF;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
+char uart_tx_buffer[200];
 
 /* FUNCTION PROTOTYPES */
 void drive_fan(fan_gate_t * fan_gate_array, uint8_t array_length);
@@ -247,18 +251,14 @@ void uart_transmit_char(unsigned char data)
 	
 	while (!(UCSR0A & (1<<UDRE0))) // wait for empty transmit buffer 
 	;
-	/* Put data into buffer, sends the data */
-	UDR0 = data;
+
+	UDR0 = data; // put data to send buffer
 }
 
-void uart_transmit_string(char * string)
+void uart_transmit_string(char * string_to_send)
 {
-	uint32_t i = 0;
-	while (string[i] != 0x00)
-	{
-		uart_transmit_char(string[i]);
-		i++;
-	}
+	memcpy(uart_tx_buffer, string_to_send, sizeof(uart_tx_buffer));
+	uart_transmit_char('\n'); // first char is needed to make TX interrupt finished work
 }
 
 void rs_transmitter_enable(void)
@@ -273,9 +273,9 @@ void rs_transmitter_disable(void)
 
 void send_debug_info(fan_gate_t * fan_gate_array)
 {
-	char debug_info[150];
+	char debug_info[sizeof(uart_tx_buffer)];
 	snprintf(debug_info, sizeof(debug_info), 
-		"NTC1 temp: %d\nNTC2 temp: %d\nNTC3 temp: %d\nFAN1 voltage: %ld\nFAN2 voltage: %ld\nFAN3 voltage: %ld\n\n", 
+		"NTC1 temp: %d\nNTC2 temp: %d\nNTC3 temp: %d\nFAN1 voltage: %ld\nFAN2 voltage: %ld\nFAN3 voltage: %ld\n", 
 		sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index],
 		sensor_values.temperatures[fan_gate_array[1].main_temp_sensor_index],
 		sensor_values.temperatures[fan_gate_array[2].main_temp_sensor_index],
@@ -329,10 +329,20 @@ ISR (TIMER1_COMPA_vect)
 	pid_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
 }
 
-ISR(USART0_TX_vect) // USART TX compete interrupt
+ISR(USART0_TX_vect) // USART TX complete interrupt
 {
-	// rs_transmitter_disable();
-}	 //rs_transmitter_disable();
+	static uint16_t buffer_index = 0;
+	if (uart_tx_buffer[buffer_index] != 0x00)
+	{
+		uart_transmit_char(uart_tx_buffer[buffer_index]);
+		buffer_index++;
+	}
+	else
+	{
+		 buffer_index = 0;
+		 // rs_transmitter_disable();
+	}
+	
 }
 
 ISR(USART0_RX_vect)
