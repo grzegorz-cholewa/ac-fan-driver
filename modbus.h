@@ -1,0 +1,8 @@
+
+#ifndef MODBUS_H_
+#define MODBUS_H_
+
+#define TEMPERATURE_STATUS_OK 0x000
+#define TEMPERATURE_STATUS_ERROR 0x001
+
+#endif /* MODBUS_H_ */
