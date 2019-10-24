@@ -241,7 +241,7 @@ void send_debug_info(channel_t * channel_array)
 {
 	char debug_info[UART_TX_BUFFER_SIZE];
 	snprintf(debug_info, sizeof(debug_info), 
-			"NTC1: %d %dC\nNTC2: %d %dC\nNTC3: %d %dC\nNTC4: %d %dC\nNTC5: %d %dC\nNTC6: %d %dC\nFAN1: %dV\nFAN2: %dV\nFAN3: %dV\nStatus: %d",
+			"\nNTC1: %d %dC\nNTC2: %d %dC\nNTC3: %d %dC\nNTC4: %d %dC\nNTC5: %d %dC\nNTC6: %d %dC\nFAN1: %dV\nFAN2: %dV\nFAN3: %dV\nStatus: %d\n",
 			sensor_values.adc_values[0],
 			sensor_values.temperatures[0],
 			sensor_values.adc_values[1],
@@ -259,7 +259,7 @@ void send_debug_info(channel_t * channel_array)
 			channel_array[2].mean_voltage,
 			temperature_error_state
 			);
-	rs485_transmit_string(debug_info);
+	rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
 
