@@ -1,7 +1,3 @@
-/*
- * temperature.c
- *
- */ 
 
 #include <temperature.h>
 

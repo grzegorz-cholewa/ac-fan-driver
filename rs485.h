@@ -1,10 +1,3 @@
-/*
- * rs485.h
- *
- * Created: 24/10/2019 17:30:51
- *  Author: LENOVO
- */ 
-
 
 #ifndef RS485_H_
 #define RS485_H_

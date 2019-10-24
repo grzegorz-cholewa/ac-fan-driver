@@ -30,7 +30,7 @@ typedef struct
 {
 	port_pin_t pin;
 	const uint8_t main_temp_sensor_index;
-	uint32_t mean_voltage; // values from 0 to 256
+	uint16_t mean_voltage; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 	gate_state_t state;
 } fan_gate_t;
@@ -38,7 +38,7 @@ typedef struct
 /* GLOBAL VARIABLES */
 module_work_state_t work_state = WORK_STATE_FORCE_OFF;
 uint32_t gate_pulse_delay_counter_us = 0;
-uint32_t pid_pulse_delay_counter_us = 0;
+uint32_t pi_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
 bool error_flag = false;
@@ -49,11 +49,10 @@ uint32_t get_gate_delay_us(uint8_t mean_voltage);
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
-uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read);
+uint16_t pi_regulator(int current_temp, uint16_t debug_adc_read);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
-
 void send_debug_info(fan_gate_t * fan_gate_array);
 
 /* FUNCTION DEFINITIONS */
@@ -145,12 +144,12 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read)
+uint16_t pi_regulator(int current_temp, uint16_t debug_adc_read)
 {
 	static float PID_KI = PID_KP/PID_TIME_CONST_S;
 	static int error;
 	static int integral;
-	uint8_t mean_voltage;
+	uint16_t mean_voltage;
 
 	if(current_temp < MIN_WORKING_TEMPERATURE) // system error: temperature too low
 	{
@@ -220,7 +219,7 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 	
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
-		fan_gate_array[i].mean_voltage = pid_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
+		fan_gate_array[i].mean_voltage = pi_regulator(sensor_values.temperatures[fan_gate_array[i].main_temp_sensor_index], sensor_values.adc_values[fan_gate_array[i].main_temp_sensor_index]);
 		fan_gate_array[i].activation_delay_us = get_gate_delay_us(fan_gate_array[i].mean_voltage);
 	}
 }
@@ -229,7 +228,7 @@ void send_debug_info(fan_gate_t * fan_gate_array)
 {
 	char debug_info[UART_TX_BUFFER_SIZE];
 	snprintf(debug_info, sizeof(debug_info), 
-		"TH1: %d/1024 %dC\nTH2: %d/1024 %dC\nTH3: %d/1024 %dC\nTH4: %d/1024 %dC\nTH5: %d/1024 %dC\nTH6: %d/1024 %dC\nFAN1: %ldV\nFAN2: %ldV\nFAN3: %ldV\n", 
+		"TH1: %d/1024 %dC\nTH2: %d/1024 %dC\nTH3: %d/1024 %dC\nTH4: %d/1024 %dC\nTH5: %d/1024 %dC\nTH6: %d/1024 %dC\nFAN1: %dV\nFAN2: %dV\nFAN3: %dV\n", 
 		sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index],
 		sensor_values.adc_values[fan_gate_array[0].main_temp_sensor_index],
 		sensor_values.temperatures[fan_gate_array[1].main_temp_sensor_index],
@@ -267,10 +266,10 @@ int main (void)
 	{
 		drive_fan(fan_gate_array, FAN_NUMBER);		
 		
-		if(pid_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
+		if(pi_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
 			update_working_parameters(fan_gate_array, FAN_NUMBER);
-			pid_pulse_delay_counter_us = 0;
+			pi_pulse_delay_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
 				send_debug_info(fan_gate_array);
 			#endif
@@ -295,7 +294,7 @@ ISR (INT0_vect)
 ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
-	pid_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
+	pi_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
 }
 
 /* ISR for UART TX complete interrupt */ 

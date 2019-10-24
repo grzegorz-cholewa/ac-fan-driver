@@ -10,7 +10,7 @@
 typedef struct
 {
 	uint16_t adc_values[ADC_SENSOR_NUMBER];
-	int temperatures[ADC_SENSOR_NUMBER];
+	int16_t temperatures[ADC_SENSOR_NUMBER];
 } sensors_t;
 
 

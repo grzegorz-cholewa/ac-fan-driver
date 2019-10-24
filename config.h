@@ -44,7 +44,7 @@
 #define UART_BAUD_RATE 9600
 #define MYUBRR (F_CPU/16/UART_BAUD_RATE - 1)
 
-//#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
+#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
 #define SEND_DEBUG_INFO_OVER_RS 1
 
 /* CONSTANTS */
