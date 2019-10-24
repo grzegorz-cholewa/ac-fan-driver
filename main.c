@@ -9,6 +9,7 @@
 #include <asf.h> 
 #include <config.h>
 #include <temperature.h>
+#include <rs485.h>
 
 
 /* TYPE DEFINITIONS */
@@ -39,7 +40,6 @@ module_work_state_t work_state = WORK_STATE_FORCE_OFF;
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pid_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
-char uart_tx_buffer[200];
 bool modbus_request_pending_flag = false;
 bool error_flag = false;
 
@@ -53,11 +53,7 @@ uint8_t pid_regulator(int current_temp, uint16_t debug_adc_read);
 void set_gate_state(fan_gate_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length);
-void usart_init(void);
-void uart_transmit_byte(unsigned char);
-void uart_transmit_string(char * string);
-void rs_transmitter_enable(void);
-void rs_transmitter_disable(void);
+
 void send_debug_info(fan_gate_t * fan_gate_array);
 
 /* FUNCTION DEFINITIONS */
@@ -127,7 +123,7 @@ void gpio_init(void)
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
-	ioport_configure_pin(RS_DRIVER_ENABLE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
+
 }
 
 void interrupt_init(void)
@@ -229,45 +225,9 @@ void update_working_parameters(fan_gate_t * fan_gate_array, uint8_t array_length
 	}
 }
 
-void usart_init(void)
-{
-	/*Set baud rate */
-	UBRR0H = (unsigned char)(MYUBRR>>8);
-	UBRR0L = (unsigned char)MYUBRR;
-	UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
-	UCSR0C = (1<<USBS0)|(3<<UCSZ00); // set frame format: 8data, 2stop bit
-	
-	UCSR0B |= USART_TXC_bm; // enable tx complete interrupt
-}
-
-void uart_transmit_byte(unsigned char data)
-{
-	while (!(UCSR0A & (1<<UDRE0))) // wait for empty transmit buffer 
-	;
-
-	UDR0 = data; // put data to send buffer
-}
-
-void uart_transmit_string(char * string_to_send)
-{
-	memcpy(uart_tx_buffer, string_to_send, sizeof(uart_tx_buffer));
-	rs_transmitter_enable();
-	uart_transmit_byte('\n'); // first char is needed to make TX interrupt finished work
-}
-
-void rs_transmitter_enable(void)
-{
-	gpio_set_pin_high(RS_DRIVER_ENABLE_PIN);
-}
-
-void rs_transmitter_disable(void)
-{
-	gpio_set_pin_low(RS_DRIVER_ENABLE_PIN);
-}
-
 void send_debug_info(fan_gate_t * fan_gate_array)
 {
-	char debug_info[sizeof(uart_tx_buffer)];
+	char debug_info[UART_TX_BUFFER_SIZE];
 	snprintf(debug_info, sizeof(debug_info), 
 		"TH1: %d/1024 %dC\nTH2: %d/1024 %dC\nTH3: %d/1024 %dC\nTH4: %d/1024 %dC\nTH5: %d/1024 %dC\nTH6: %d/1024 %dC\nFAN1: %ldV\nFAN2: %ldV\nFAN3: %ldV\n", 
 		sensor_values.temperatures[fan_gate_array[0].main_temp_sensor_index],
@@ -285,7 +245,7 @@ void send_debug_info(fan_gate_t * fan_gate_array)
 		fan_gate_array[0].mean_voltage,
 		fan_gate_array[1].mean_voltage,
 		fan_gate_array[2].mean_voltage );
-	uart_transmit_string(debug_info);
+	rs485_transmit_string(debug_info);
 }
 
 
@@ -296,7 +256,7 @@ int main (void)
 	gpio_init();
 	adc_init();
 	interrupt_init();
-	usart_init();
+	rs485_init();
 	led_blink(3, 50);
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	
@@ -341,17 +301,7 @@ ISR (TIMER1_COMPA_vect)
 /* ISR for UART TX complete interrupt */ 
 ISR(USART0_TX_vect) 
 {
-	static uint16_t buffer_index = 0;
-	if (uart_tx_buffer[buffer_index] != 0x00)
-	{
-		uart_transmit_byte(uart_tx_buffer[buffer_index]);
-		buffer_index++;
-	}
-	else
-	{
-		 buffer_index = 0;
-		 rs_transmitter_disable();
-	}
+	rs485_transmit_from_buffer();
 }
 
 /* ISR for UART RX interrupt */ 
