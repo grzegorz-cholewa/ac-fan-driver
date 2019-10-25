@@ -24,15 +24,14 @@ void rs485_transmit_byte(uint8_t data)
 {
 	while (!(UCSR0A & (1<<UDRE0))) // wait for empty transmit buffer
 	;
-
 	UDR0 = data; // put data to send buffer
 }
 
 void rs485_transmit_byte_array(uint8_t * byte_array, uint16_t array_size)
 {
+	rs485_transmitter_enable();
 	memcpy(uart_tx_buffer, byte_array, array_size);
 	bytes_to_transmit = array_size;
-	rs485_transmitter_enable();
 	rs485_transmit_from_buffer();
 }
 
@@ -56,9 +55,9 @@ void rs485_transmit_from_buffer(void)
 	}
 	else
 	{
-		// memset(uart_tx_buffer, 0, UART_TX_BUFFER_SIZE); // probably not needed
+		delay_us(150);
+		rs485_transmitter_disable();
 		bytes_to_transmit = 0;
 		buffer_index = 0;
-		rs485_transmitter_disable();
 	}
 }

@@ -43,6 +43,7 @@ uint32_t pi_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
 uint16_t temperature_error_state = 0;
+uint8_t rx_byte = 'X';
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -271,7 +272,7 @@ int main (void)
 	rs485_init();
 	led_blink(3, 50);
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
-	
+		
 	static channel_t channel_array[FAN_NUMBER] = {
 		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
 		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
@@ -291,6 +292,8 @@ int main (void)
 			#ifdef SEND_DEBUG_INFO_OVER_RS
 				send_debug_info(channel_array);
 			#endif
+			uint8_t data[] = {rx_byte};
+			rs485_transmit_byte_array(data, 1);
 		}
 		
 		if (modbus_request_pending_flag == true)
@@ -323,6 +326,12 @@ ISR(USART0_TX_vect)
 /* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
-	rs485_transmit_byte('a');
-	rs485_transmit_byte(UDR0);
+	if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
+	{
+		rx_byte = UDR0;
+	}
+	else
+	{
+		led_blink(1,50);
+	}
 }
