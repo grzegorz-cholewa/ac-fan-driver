@@ -4,17 +4,25 @@
 #include <rs485.h>
 
 uint8_t uart_tx_buffer[UART_TX_BUFFER_SIZE];
+uint8_t * tx_buffer_pointer = uart_tx_buffer;
+
+uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
+uint8_t * rx_buffer_pointer = uart_rx_buffer;
+
 uint16_t bytes_to_transmit = 0;
-bool transmit_pending = false;
 
 void rs485_init(void)
 {
 	UBRR0H = (unsigned char)(MYUBRR>>8); // set baud rate
 	UBRR0L = (unsigned char)MYUBRR; // set baud rate
-	UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
+	
+	//UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
+	usart_tx_enable(&USART0);
+	usart_rx_enable(&USART0);
+	
 	UCSR0C = (1<<USBS0)|(3<<UCSZ00); // set frame format: 8data, 2stop bit
 	
-	UCSR0B |= USART_RXC_bm; // enable RX interrupt
+	usart_rx_complete_interrupt_enable(&USART0); // enable RX interrupt
 	UCSR0B |= USART_TXC_bm; // enable TX complete interrupt
 	
 	ioport_configure_pin(RS_DRIVER_ENABLE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
@@ -47,17 +55,37 @@ void rs485_transmitter_disable(void)
 
 void rs485_transmit_from_buffer(void)
 {
-	static uint16_t buffer_index = 0;
-	if (buffer_index < bytes_to_transmit)
+	if (bytes_to_transmit > (tx_buffer_pointer-uart_tx_buffer))
 	{
-		rs485_transmit_byte(uart_tx_buffer[buffer_index]);
-		buffer_index++;
+		rs485_transmit_byte(*tx_buffer_pointer);
+		tx_buffer_pointer++;
 	}
 	else
 	{
 		delay_us(150);
 		rs485_transmitter_disable();
 		bytes_to_transmit = 0;
-		buffer_index = 0;
+		tx_buffer_pointer = uart_tx_buffer;
 	}
+}
+
+bool rs485_rx_buffer_full()
+{
+	if (rx_buffer_pointer <= uart_rx_buffer + UART_RX_BUFFER_SIZE)
+		return false;
+	else
+		return true;
+}
+
+bool rs485_get_byte_to_buffer()
+{
+	if (!rs485_rx_buffer_full())
+	{
+		uint8_t received_byte = usart_get(&USART0);
+		*rx_buffer_pointer = received_byte;
+		rx_buffer_pointer++;
+		return true;
+	}
+	else
+		return false;
 }

@@ -43,7 +43,6 @@ uint32_t pi_pulse_delay_counter_us = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
 uint16_t temperature_error_state = 0;
-uint8_t rx_byte = 'X';
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -292,8 +291,6 @@ int main (void)
 			#ifdef SEND_DEBUG_INFO_OVER_RS
 				send_debug_info(channel_array);
 			#endif
-			uint8_t data[] = {rx_byte};
-			rs485_transmit_byte_array(data, 1);
 		}
 		
 		if (modbus_request_pending_flag == true)
@@ -328,10 +325,12 @@ ISR(USART0_RX_vect)
 {
 	if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
 	{
-		rx_byte = UDR0;
+		bool status = rs485_get_byte_to_buffer();
+		if (!status)
+		{
+			led_blink(1, 50);
+		}
 	}
 	else
-	{
-		led_blink(1,50);
-	}
+		led_blink(1, 50);
 }

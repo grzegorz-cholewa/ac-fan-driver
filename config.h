@@ -43,6 +43,7 @@
 //#define ON_EVALBOARD 1
 #ifdef ON_EVALBOARD
 	#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
+	#define F_CPU 16000000
 #else
 	#define LED_PIN IOPORT_CREATE_PIN(PORTD, 3)
 #endif
