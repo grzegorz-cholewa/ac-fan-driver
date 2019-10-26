@@ -11,6 +11,7 @@ void rs485_transmit_byte_array(uint8_t * byte_array, uint16_t array_size);
 void rs485_transmitter_enable(void);
 void rs485_transmitter_disable(void);
 void rs485_transmit_from_buffer(void);
+bool rs485_ready_to_send(void);
 bool rs485_rx_buffer_full(void);
 bool rs485_get_byte_to_buffer(void);
 

@@ -259,7 +259,8 @@ void send_debug_info(channel_t * channel_array)
 			channel_array[2].mean_voltage,
 			temperature_error_state
 			);
-	rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
+	if (rs485_ready_to_send())
+		rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
 
@@ -271,6 +272,7 @@ int main (void)
 	rs485_init();
 	led_blink(3, 50);
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
+			
 		
 	static channel_t channel_array[FAN_NUMBER] = {
 		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},

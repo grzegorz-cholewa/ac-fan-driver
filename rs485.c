@@ -69,6 +69,14 @@ void rs485_transmit_from_buffer(void)
 	}
 }
 
+bool rs485_ready_to_send(void)
+{
+	if (tx_buffer_pointer == uart_tx_buffer)
+		return true;
+	else
+		return false;
+}
+
 bool rs485_rx_buffer_full()
 {
 	if (rx_buffer_pointer <= uart_rx_buffer + UART_RX_BUFFER_SIZE)
