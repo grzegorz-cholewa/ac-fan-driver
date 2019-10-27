@@ -36,6 +36,12 @@ uint8_t get_low_byte(uint16_t value);
 
 uint8_t get_high_byte(uint16_t value);
 
-void send_info_response(uint16_t * info_registers, uint8_t registers_number);
+void modbus_send_control_response(void);
+
+void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number);
+
+void modbus_get_info_registers(int16_t * data, uint16_t data_length);
+
+void modbus_process_frame(uint8_t * frame, uint16_t frame_size);
 
 #endif /* MODBUS_H_ */

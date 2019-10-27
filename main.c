@@ -40,9 +40,11 @@ typedef struct
 /* GLOBAL VARIABLES */
 uint32_t gate_pulse_delay_counter_us = 0;
 uint32_t pi_pulse_delay_counter_us = 0;
+uint32_t rx_time_interval_counter = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
 uint16_t temperature_error_state = 0;
+uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -56,6 +58,7 @@ void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(channel_t * channel_array, uint8_t array_length);
 void send_debug_info(channel_t * channel_array);
+void update_info_registers(channel_t * channel_array);
 
 /* FUNCTION DEFINITIONS */
 uint16_t check_temperatures(sensors_t * sensor_array)
@@ -239,7 +242,7 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 
 void send_debug_info(channel_t * channel_array)
 {
-	char debug_info[UART_TX_BUFFER_SIZE];
+	char debug_info[RS_TX_BUFFER_SIZE];
 	snprintf(debug_info, sizeof(debug_info), 
 			"\nNTC1: %d %dC\nNTC2: %d %dC\nNTC3: %d %dC\nNTC4: %d %dC\nNTC5: %d %dC\nNTC6: %d %dC\nFAN1: %dV\nFAN2: %dV\nFAN3: %dV\nStatus: %d\n",
 			sensor_values.adc_values[0],
@@ -263,6 +266,23 @@ void send_debug_info(channel_t * channel_array)
 		rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
+void update_info_registers(channel_t * channel_array)
+{
+	int16_t info_registers[INFO_REGISTERS_NUMBER];
+	info_registers[0] = sensor_values.temperatures[0];
+	info_registers[1] = sensor_values.temperatures[1];
+	info_registers[2] = sensor_values.temperatures[2];
+	info_registers[3] = sensor_values.temperatures[3];
+	info_registers[4] = sensor_values.temperatures[4];
+	info_registers[5] = sensor_values.temperatures[5];
+	info_registers[6] = channel_array[0].mean_voltage,
+	info_registers[7] = channel_array[1].mean_voltage,
+	info_registers[8] = channel_array[2].mean_voltage,
+	info_registers[9] = temperature_error_state;
+	
+	modbus_get_info_registers(info_registers, INFO_REGISTERS_NUMBER);
+}
+
 
 int main (void)
 {
@@ -273,7 +293,6 @@ int main (void)
 	led_blink(3, 50);
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 			
-		
 	static channel_t channel_array[FAN_NUMBER] = {
 		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
 		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
@@ -289,6 +308,7 @@ int main (void)
 		if(pi_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
 			update_working_parameters(channel_array, FAN_NUMBER);
+			update_info_registers(channel_array);
 			pi_pulse_delay_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
 				send_debug_info(channel_array);
@@ -297,7 +317,10 @@ int main (void)
 		
 		if (modbus_request_pending_flag == true)
 		{
-			// TBD: prepare response for modbus request
+			uint8_t frame_buffer[RS_RX_BUFFER_SIZE];
+			rs485_get_frame(frame_buffer, RS_RX_BUFFER_SIZE);
+			modbus_process_frame(frame_buffer, RS_RX_BUFFER_SIZE);
+			modbus_request_pending_flag = false;
 		}
 	}
 }
@@ -314,6 +337,7 @@ ISR (TIMER1_COMPA_vect)
 {
 	gate_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
 	pi_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
+	rx_time_interval_counter += GATE_DRIVING_TIMER_RESOLUTION_US;
 }
 
 /* ISR for UART TX complete interrupt */ 
@@ -325,6 +349,11 @@ ISR(USART0_TX_vect)
 /* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
+	if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
+	{
+		modbus_request_pending_flag = true;
+	}
+	
 	if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
 	{
 		bool status = rs485_get_byte_to_buffer();
@@ -334,5 +363,7 @@ ISR(USART0_RX_vect)
 		}
 	}
 	else
-		led_blink(1, 50);
+		led_blink(2, 50);
+		
+	rx_time_interval_counter = 0;
 }

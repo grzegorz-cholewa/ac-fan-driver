@@ -3,10 +3,10 @@
 #include <config.h>
 #include <rs485.h>
 
-uint8_t uart_tx_buffer[UART_TX_BUFFER_SIZE];
+uint8_t uart_tx_buffer[RS_TX_BUFFER_SIZE];
 uint8_t * tx_buffer_pointer = uart_tx_buffer;
 
-uint8_t uart_rx_buffer[UART_RX_BUFFER_SIZE];
+uint8_t uart_rx_buffer[RS_RX_BUFFER_SIZE];
 uint8_t * rx_buffer_pointer = uart_rx_buffer;
 
 uint16_t bytes_to_transmit = 0;
@@ -79,10 +79,18 @@ bool rs485_ready_to_send(void)
 
 bool rs485_rx_buffer_full()
 {
-	if (rx_buffer_pointer <= uart_rx_buffer + UART_RX_BUFFER_SIZE)
+	if (rx_buffer_pointer <= uart_rx_buffer + RS_RX_BUFFER_SIZE)
 		return false;
 	else
 		return true;
+}
+
+bool rs485_rx_buffer_empty(void)
+{
+	if (rx_buffer_pointer == uart_rx_buffer)
+		return true;
+	else
+		return false;	
 }
 
 bool rs485_get_byte_to_buffer()
@@ -96,4 +104,10 @@ bool rs485_get_byte_to_buffer()
 	}
 	else
 		return false;
+}
+
+void rs485_get_frame(uint8_t * dest_array, uint8_t array_size)
+{
+	memcpy(dest_array, uart_rx_buffer, array_size);
+	rx_buffer_pointer = uart_rx_buffer;
 }

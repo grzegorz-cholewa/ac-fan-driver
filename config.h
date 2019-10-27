@@ -1,8 +1,3 @@
-/*
- * config.h
- *
- * Created: 26/07/2019 00:18:18
- */ 
 
 #ifndef CONFIG_H_
 #define CONFIG_H_
@@ -32,15 +27,18 @@
 #define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000
 #define PI_KP 1
 #define PI_TIME_CONST_S 5
+#define TIME_BETWEEN_MODBUS_FRAMES_US 400
 
 /* RS485 PARAMETERS */
 #define RS_BAUD_RATE 9600
 #define MYUBRR (F_CPU/16/RS_BAUD_RATE - 1)
+#define RS_TX_BUFFER_SIZE 100
+#define RS_RX_BUFFER_SIZE 50
 
 /* DEBUG SWITCHES */
 #define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
-//#define SEND_DEBUG_INFO_OVER_RS 1
-//#define ON_EVALBOARD 1
+#define SEND_DEBUG_INFO_OVER_RS 1
+#define ON_EVALBOARD 1
 #ifdef ON_EVALBOARD
 	#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
 	#define F_CPU 16000000
