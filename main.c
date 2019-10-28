@@ -293,7 +293,7 @@ int main (void)
 	rs485_init();
 	led_blink(3, 50);
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
-			
+		
 	static channel_t channel_array[FAN_NUMBER] = {
 		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
 		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
@@ -309,7 +309,6 @@ int main (void)
 		if(pi_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
 			update_working_parameters(channel_array, FAN_NUMBER);
-			update_info_registers(channel_array);
 			pi_pulse_delay_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
 				send_debug_info(channel_array);
@@ -318,6 +317,7 @@ int main (void)
 		
 		if (modbus_request_pending_flag == true)
 		{
+			update_info_registers(channel_array);
 			modbus_process_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
 			modbus_request_pending_flag = false;
 		}
@@ -366,6 +366,6 @@ ISR(USART0_RX_vect)
 	{
 		led_blink(2, 50);
 	}
-		
+	
 	rx_time_interval_counter = 0;
 }

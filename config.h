@@ -38,7 +38,7 @@
 /* DEBUG SWITCHES */
 #define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
 #define SEND_DEBUG_INFO_OVER_RS 1
-#define ON_EVALBOARD 1
+//#define ON_EVALBOARD 1
 #ifdef ON_EVALBOARD
 	#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
 	#define F_CPU 16000000

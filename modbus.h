@@ -32,9 +32,9 @@
 #define INFO_CH3_VOLTAGE 40018
 #define INFO_ERROR_STATUS 40019
 
-uint8_t get_low_byte(uint16_t value);
+uint8_t get_first_byte(uint16_t two_byte);
 
-uint8_t get_high_byte(uint16_t value);
+uint8_t get_second_byte(uint16_t two_byte);
 
 void modbus_send_control_response(void);
 

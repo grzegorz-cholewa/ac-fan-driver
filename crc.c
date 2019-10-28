@@ -63,5 +63,5 @@ uint16_t usMBCRC16(uint8_t * pucFrame, uint16_t usLen)
         ucCRCLo = (uint8_t)( ucCRCHi ^ aucCRCHi[iIndex] );
         ucCRCHi = aucCRCLo[iIndex];
     }
-    return (uint8_t)( ucCRCHi << 8 | ucCRCLo );
+    return (uint16_t)( ucCRCHi << 8 | ucCRCLo );
 }
