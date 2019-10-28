@@ -27,7 +27,7 @@ void modbus_send_control_response(void)
 
 void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number)
 { 
-	uint8_t response_buffer[5 + 2 * registers_number];
+	uint8_t response_buffer[5 + 2 * INFO_REGISTERS_NUMBER];
 	uint8_t frame_len = 3 + 2*registers_number + 2;
 	
 	/* Add constant elements */
