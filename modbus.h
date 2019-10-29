@@ -36,8 +36,6 @@ uint8_t get_first_byte(uint16_t two_byte);
 
 uint8_t get_second_byte(uint16_t two_byte);
 
-void modbus_send_control_response(void);
-
 void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number);
 
 void modbus_get_info_registers(int16_t * data, uint16_t data_length);

@@ -47,6 +47,7 @@ bool modbus_request_pending_flag = false;
 uint16_t temperature_error_state = 0;
 uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
 int16_t info_registers[INFO_REGISTERS_NUMBER];
+uint8_t modbus_frame_byte_counter = 0;
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -306,7 +307,7 @@ int main (void)
 		if (modbus_request_pending_flag == true)
 		{
 			update_info_registers(channel_array);
-			modbus_process_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
+			modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
 			modbus_request_pending_flag = false;
 		}
 	}
@@ -330,6 +331,7 @@ ISR (TIMER1_COMPA_vect)
 	{
 		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
 		modbus_request_pending_flag = true;
+		modbus_frame_byte_counter = 0;
 	}
 }
 
@@ -344,8 +346,11 @@ ISR(USART0_RX_vect)
 {
 	if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
 	{
-		bool status = rs485_get_byte_to_buffer();
-		if (!status)
+		if (rs485_get_byte_to_buffer())
+		{
+			modbus_frame_byte_counter++;
+		}
+		else
 		{
 			led_blink(1, 50);
 		}

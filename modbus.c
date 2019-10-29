@@ -20,20 +20,21 @@ uint8_t get_second_byte(uint16_t two_byte)
 	return (two_byte & 0xFF); // LSB
 }
 
-void modbus_send_control_response(void)
+uint16_t get_short(uint8_t * first_byte_pointer)
 {
-	
+	return (short) (*first_byte_pointer << 8 | *(first_byte_pointer+1));
 }
+
 
 void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number)
 { 
-	uint8_t response_buffer[5 + 2 * INFO_REGISTERS_NUMBER];
+	uint8_t response_buffer[5 + 2 * INFO_REGISTERS_NUMBER]; // max array size is needed when all registers are read back
 	uint8_t frame_len = 3 + 2*registers_number + 2;
 	
 	/* Add constant elements */
 	*(response_buffer + 0) = DEVICE_ID;
 	*(response_buffer + 1) = FUNC_READ;
-	*(response_buffer + 2) = INFO_REGISTERS_NUMBER;
+	*(response_buffer + 2) = registers_number;
 	
 	/* Add data registers */
 	for (int i = 0; i < registers_number; i++)
@@ -59,11 +60,14 @@ void modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 {
 	if (memcmp(frame, control_request_head, sizeof(control_request_head)) == 0)
 	{
-		modbus_send_control_response();
+		
+		rs485_transmit_byte_array(frame, frame_size); // send echo as response
 	}
 	
 	else if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
 	{
-		modbus_send_info_response(info_registers, INFO_REGISTERS_NUMBER);
+		uint8_t first_address_offset = get_short(frame+2);
+		uint8_t registers_number = get_short(frame+4);
+		modbus_send_info_response(info_registers + first_address_offset, registers_number);
 	}
 }
