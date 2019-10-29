@@ -294,28 +294,27 @@ int main (void)
 		
 		if (modbus_request_pending_flag == true)
 		{
-			update_info_registers(channel_array);
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
+			
 			if (request_type == REQUEST_TYPE_WRITE)
 			{
 				control_params control_parameters = modbus_get_control_params();
-				
 				switch (control_parameters.register_position)
 				{
-					case (INFO_CH1_VOLTAGE_OFFSET):
+					case (CTRL_CH1_POWER_OFFSET):
 						if (control_parameters.value_to_set > 100)
 							channel_array[0].work_state = WORK_STATE_AUTO;
 						else
 							channel_array[0].work_state = WORK_STATE_MANUAL;
 							channel_array[0].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
 						break;
-					case (INFO_CH2_VOLTAGE_OFFSET):
+					case (CTRL_CH2_POWER_OFFSET):
 						if (control_parameters.value_to_set > 100)
 							channel_array[1].work_state = WORK_STATE_AUTO;
 						else
 							channel_array[1].work_state = WORK_STATE_MANUAL;
 							channel_array[1].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
-					case (INFO_CH3_VOLTAGE_OFFSET):
+					case (CTRL_CH3_POWER_OFFSET):
 						if (control_parameters.value_to_set > 100)
 							channel_array[2].work_state = WORK_STATE_AUTO;
 						else
@@ -333,6 +332,11 @@ int main (void)
 						break;																							
 				}
 			}
+			else
+			{
+				update_info_registers(channel_array);
+			}
+			
 			modbus_request_pending_flag = false;
 		}
 	}

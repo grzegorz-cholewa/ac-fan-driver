@@ -70,9 +70,9 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	
 	else if (memcmp(frame, control_request_head, sizeof(control_request_head)) == 0)
 	{
+		rs485_transmit_byte_array(frame, frame_size); // send echo as response
 		control_parameters.register_position = get_short(frame+2);
 		control_parameters.value_to_set = get_short(frame+4);
-		rs485_transmit_byte_array(frame, frame_size); // send echo as response
 		return REQUEST_TYPE_WRITE;
 	}
 	else 
