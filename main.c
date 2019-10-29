@@ -16,9 +16,8 @@
 /* TYPE DEFINITIONS */
 typedef enum
 {
-	WORK_STATE_FORCE_OFF,
-	WORK_STATE_FORCE_FULL_ON,
-	WORK_STATE_AUTO
+	WORK_STATE_AUTO,
+	WORK_STATE_MANUAL
 } channel_work_state_t;
 
 typedef enum 
@@ -89,41 +88,26 @@ void drive_fans(channel_t * channel_array, uint8_t array_length)
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
 		cli(); // enter critical section
-		switch (channel_array[i].work_state)
-		{
-			case WORK_STATE_AUTO:
-			{
-				if (channel_array[i].mean_voltage<=MIN_FAN_VOLTAGE)
-				{
-					set_gate_state(&channel_array[i], GATE_IDLE);
-					break;
-				}
-				
-				if (channel_array[i].mean_voltage>=MAX_FAN_VOLTAGE)
-				{
-					set_gate_state(&channel_array[i], GATE_ACTIVE);
-					break;
-				}
-				
-				if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (channel_array[i].activation_delay_us + GATE_PULSE_TIME_US)) )
-				{
 
-					set_gate_state(&channel_array[i], GATE_ACTIVE);
-				}
-				else
-				{
-					set_gate_state(&channel_array[i], GATE_IDLE);
-				}
-				break;
-			}
-			case WORK_STATE_FORCE_FULL_ON:
-			set_gate_state(&channel_array[i], GATE_ACTIVE);
-			break;
-			
-			case WORK_STATE_FORCE_OFF:
+		if (channel_array[i].mean_voltage<=MIN_FAN_VOLTAGE)
+		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
-			break;
 		}
+				
+		else if (channel_array[i].mean_voltage>=MAX_FAN_VOLTAGE)
+		{
+			set_gate_state(&channel_array[i], GATE_ACTIVE);
+		}
+				
+		else if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (channel_array[i].activation_delay_us + GATE_PULSE_TIME_US)) )
+		{
+			set_gate_state(&channel_array[i], GATE_ACTIVE);
+		}
+		else
+		{
+			set_gate_state(&channel_array[i], GATE_IDLE);
+		}
+
 		sei(); // leave critical section
 	}
 }
@@ -237,9 +221,12 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 	
 	for (uint8_t i = 0; i < FAN_NUMBER; i++)
 	{
-		channel_array[i].mean_voltage = pi_regulator(sensor_values.temperatures[channel_array[i].temp_sensor_index],
-													  channel_array[i].target_temperature,
-													  sensor_values.adc_values[channel_array[i].temp_sensor_index]);
+		if (channel_array[i].work_state == WORK_STATE_AUTO)
+		{
+			channel_array[i].mean_voltage = pi_regulator(sensor_values.temperatures[channel_array[i].temp_sensor_index],
+											channel_array[i].target_temperature,
+											sensor_values.adc_values[channel_array[i].temp_sensor_index]);			
+		}
 		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].mean_voltage);
 	}
 }
@@ -319,17 +306,20 @@ int main (void)
 						if (control_parameters.value_to_set > 100)
 							channel_array[0].work_state = WORK_STATE_AUTO;
 						else
+							channel_array[0].work_state = WORK_STATE_MANUAL;
 							channel_array[0].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
 						break;
 					case (INFO_CH2_VOLTAGE_OFFSET):
 						if (control_parameters.value_to_set > 100)
 							channel_array[1].work_state = WORK_STATE_AUTO;
 						else
+							channel_array[1].work_state = WORK_STATE_MANUAL;
 							channel_array[1].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
 					case (INFO_CH3_VOLTAGE_OFFSET):
 						if (control_parameters.value_to_set > 100)
 							channel_array[2].work_state = WORK_STATE_AUTO;
 						else
+							channel_array[2].work_state = WORK_STATE_MANUAL;
 							channel_array[2].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);						
 						break;					
 					case (CTRL_NTC1_SETPOINT_OFFSET):
