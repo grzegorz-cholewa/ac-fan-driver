@@ -11,12 +11,13 @@ uint8_t info_request_head[] = {DEVICE_ID, FUNC_READ};
 	
 uint8_t get_first_byte(uint16_t two_byte) 
 {
-	return (two_byte & 0xFF); // LSB	 
+	return ((two_byte >> 8) & 0xFF); // MSB 
 }
 
 uint8_t get_second_byte(uint16_t two_byte) 
 {
-	return ((two_byte >> 8) & 0xFF); // MSB
+	
+	return (two_byte & 0xFF); // LSB
 }
 
 void modbus_send_control_response(void)
@@ -37,8 +38,8 @@ void modbus_send_info_response(int16_t * info_registers, uint8_t registers_numbe
 	/* Add data registers */
 	for (int i = 0; i < registers_number; i++)
 	{
-		*(response_buffer + 3 + 2*i) =  get_first_byte(* info_registers + i);
-		*(response_buffer + 3 + 2*i + 1) =  get_second_byte(* info_registers + i);
+		*(response_buffer + 3 + 2*i) =  get_first_byte(*(info_registers + i));
+		*(response_buffer + 3 + 2*i + 1) =  get_second_byte(*(info_registers + i));
 	}
 
 	/* Add CRC */

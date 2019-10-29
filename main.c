@@ -46,6 +46,7 @@ sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
 uint16_t temperature_error_state = 0;
 uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
+int16_t info_registers[INFO_REGISTERS_NUMBER];
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -243,33 +244,21 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 
 void send_debug_info(channel_t * channel_array)
 {
-	char debug_info[RS_TX_BUFFER_SIZE];
-	snprintf(debug_info, sizeof(debug_info), 
-			"\nNTC1: %d %dC\nNTC2: %d %dC\nNTC3: %d %dC\nNTC4: %d %dC\nNTC5: %d %dC\nNTC6: %d %dC\nFAN1: %dV\nFAN2: %dV\nFAN3: %dV\nStatus: %d\n",
-			sensor_values.adc_values[0],
-			sensor_values.temperatures[0],
-			sensor_values.adc_values[1],
-			sensor_values.temperatures[1],
-			sensor_values.adc_values[2],
-			sensor_values.temperatures[2],
-			sensor_values.adc_values[3],
-			sensor_values.temperatures[3],
-			sensor_values.adc_values[4],
-			sensor_values.temperatures[4],
-			sensor_values.adc_values[5],
-			sensor_values.temperatures[5],
-			channel_array[0].mean_voltage,
-			channel_array[1].mean_voltage,
-			channel_array[2].mean_voltage,
-			temperature_error_state
-			);
+	char debug_info[50];
+	snprintf(debug_info, sizeof(debug_info),
+	//"ADC:  %d %d %d %d %d %d\nTEMP: %d %d %d %d %d %d\nC1 %d C2 %d C3 %d ER %d\n",
+	"T: %d %d %d %d %d %d V %d %d %d ER %d\n",
+	//sensor_values.adc_values[0], sensor_values.adc_values[1], sensor_values.adc_values[2], sensor_values.adc_values[3], sensor_values.adc_values[4], sensor_values.adc_values[5],
+	sensor_values.temperatures[0], sensor_values.temperatures[1], sensor_values.temperatures[2], sensor_values.temperatures[3], sensor_values.temperatures[4], sensor_values.temperatures[5],
+	channel_array[0].mean_voltage, channel_array[1].mean_voltage, channel_array[2].mean_voltage,
+	temperature_error_state
+	);
 	if (rs485_ready_to_send())
 		rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
 void update_info_registers(channel_t * channel_array)
 {
-	int16_t info_registers[INFO_REGISTERS_NUMBER];
 	info_registers[0] = sensor_values.temperatures[0];
 	info_registers[1] = sensor_values.temperatures[1];
 	info_registers[2] = sensor_values.temperatures[2];
@@ -287,19 +276,18 @@ void update_info_registers(channel_t * channel_array)
 
 int main (void)
 {
-	gpio_init();
-	adc_init();
-	interrupt_init();
-	rs485_init();
-	led_blink(3, 50);
-	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
-		
 	static channel_t channel_array[FAN_NUMBER] = {
 		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
 		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
 		{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE}
 	};
 	
+	gpio_init();
+	adc_init();
+	interrupt_init();
+	rs485_init();
+	led_blink(3, 50);
+	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(channel_array, FAN_NUMBER);
 	
 	while(1)
