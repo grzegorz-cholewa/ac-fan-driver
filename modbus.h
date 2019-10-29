@@ -13,33 +13,46 @@
 /* DATA ADDRESSES */
 #define ADDR_OFFSET 40001
 //#define CTRL_REGISTERS_NUMBER 6
-#define CTRL_CH1_POWER 40001
-#define CTRL_CH2_POWER 40002
-#define CTRL_CH3_POWER 40003
-#define CTRL_NTC1_SETPOINT 40004
-#define CTRL_NTC2_SETPOINT 40005
-#define CTRL_NTC3_SETPOINT 40006
+#define CTRL_CH1_POWER_OFFSET 0
+#define CTRL_CH2_POWER_OFFSET 1
+#define CTRL_CH3_POWER_OFFSET 2
+#define CTRL_NTC1_SETPOINT_OFFSET 3
+#define CTRL_NTC2_SETPOINT_OFFSET 4
+#define CTRL_NTC3_SETPOINT_OFFSET 5
 #define INFO_REGISTERS_OFFSET 9
 #define INFO_REGISTERS_NUMBER 10
-#define INFO_NTC1_TEMPERATURE 40010
-#define INFO_NTC2_TEMPERATURE 40011
-#define INFO_NTC3_TEMPERATURE 40012
-#define INFO_NTC4_TEMPERATURE 40013
-#define INFO_NTC5_TEMPERATURE 40014
-#define INFO_NTC6_TEMPERATURE 40015
-#define INFO_CH1_VOLTAGE 40016
-#define INFO_CH2_VOLTAGE 40017
-#define INFO_CH3_VOLTAGE 40018
-#define INFO_ERROR_STATUS 40019
+#define INFO_NTC1_TEMPERATURE_OFFSET 9
+#define INFO_NTC2_TEMPERATURE_OFFSET 10
+#define INFO_NTC3_TEMPERATURE_OFFSET 11
+#define INFO_NTC4_TEMPERATURE_OFFSET 12
+#define INFO_NTC5_TEMPERATURE_OFFSET 13
+#define INFO_NTC6_TEMPERATURE_OFFSET 14
+#define INFO_CH1_VOLTAGE_OFFSET 15
+#define INFO_CH2_VOLTAGE_OFFSET 16
+#define INFO_CH3_VOLTAGE_OFFSET 17
+#define INFO_ERROR_STATUS 18
+
+#define REQUEST_TYPE_READ 0
+#define REQUEST_TYPE_WRITE 1
+
+typedef struct 
+{
+	uint8_t register_position;
+	int16_t value_to_set;	
+}control_params;
 
 uint8_t get_first_byte(uint16_t two_byte);
 
 uint8_t get_second_byte(uint16_t two_byte);
 
+uint16_t get_short(uint8_t * first_byte_pointer);
+
 void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number);
 
 void modbus_get_info_registers(int16_t * data, uint16_t data_length);
 
-void modbus_process_frame(uint8_t * frame, uint16_t frame_size);
+int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size);
+
+control_params modbus_get_control_params(void);
 
 #endif /* MODBUS_H_ */

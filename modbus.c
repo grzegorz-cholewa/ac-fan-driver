@@ -8,7 +8,9 @@ int16_t info_registers[INFO_REGISTERS_NUMBER];
 
 uint8_t control_request_head[] = {DEVICE_ID, FUNC_WRITE};
 uint8_t info_request_head[] = {DEVICE_ID, FUNC_READ};
-	
+
+control_params control_parameters; 
+
 uint8_t get_first_byte(uint16_t two_byte) 
 {
 	return ((two_byte >> 8) & 0xFF); // MSB 
@@ -56,18 +58,29 @@ void modbus_get_info_registers(int16_t * data, uint16_t data_length)
 	memcpy(info_registers, data, data_length);
 }	
 
-void modbus_process_frame(uint8_t * frame, uint16_t frame_size)
+int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 {
-	if (memcmp(frame, control_request_head, sizeof(control_request_head)) == 0)
+	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
 	{
-		
-		rs485_transmit_byte_array(frame, frame_size); // send echo as response
+        uint8_t first_address_offset = get_short(frame+2);
+        uint8_t registers_number = get_short(frame+4);
+        modbus_send_info_response(info_registers + first_address_offset, registers_number);
+		return REQUEST_TYPE_READ;
 	}
 	
-	else if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
+	else if (memcmp(frame, control_request_head, sizeof(control_request_head)) == 0)
 	{
-		uint8_t first_address_offset = get_short(frame+2);
-		uint8_t registers_number = get_short(frame+4);
-		modbus_send_info_response(info_registers + first_address_offset, registers_number);
+		control_parameters.register_position = get_short(frame+2);
+		control_parameters.value_to_set = get_short(frame+4);
+		rs485_transmit_byte_array(frame, frame_size); // send echo as response
+		return REQUEST_TYPE_WRITE;
 	}
+	else 
+		return -1;
 }
+
+control_params modbus_get_control_params(void)
+{
+	return control_parameters;
+}
+

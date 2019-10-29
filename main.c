@@ -62,6 +62,7 @@ void timer_start(uint32_t time_us);
 void update_working_parameters(channel_t * channel_array, uint8_t array_length);
 void send_debug_info(channel_t * channel_array);
 void update_info_registers(channel_t * channel_array);
+uint8_t power_percent_to_voltage(int16_t power);
 
 /* FUNCTION DEFINITIONS */
 uint16_t check_temperatures(sensors_t * sensor_array)
@@ -307,10 +308,49 @@ int main (void)
 		if (modbus_request_pending_flag == true)
 		{
 			update_info_registers(channel_array);
-			modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
+			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
+			if (request_type == REQUEST_TYPE_WRITE)
+			{
+				control_params control_parameters = modbus_get_control_params();
+				
+				switch (control_parameters.register_position)
+				{
+					case (INFO_CH1_VOLTAGE_OFFSET):
+						if (control_parameters.value_to_set > 100)
+							channel_array[0].work_state = WORK_STATE_AUTO;
+						else
+							channel_array[0].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
+						break;
+					case (INFO_CH2_VOLTAGE_OFFSET):
+						if (control_parameters.value_to_set > 100)
+							channel_array[1].work_state = WORK_STATE_AUTO;
+						else
+							channel_array[1].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
+					case (INFO_CH3_VOLTAGE_OFFSET):
+						if (control_parameters.value_to_set > 100)
+							channel_array[2].work_state = WORK_STATE_AUTO;
+						else
+							channel_array[2].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);						
+						break;					
+					case (CTRL_NTC1_SETPOINT_OFFSET):
+						channel_array[0].target_temperature = control_parameters.value_to_set;
+						break;
+					case (CTRL_NTC2_SETPOINT_OFFSET):
+						channel_array[1].target_temperature = control_parameters.value_to_set;
+						break;	
+					case (CTRL_NTC3_SETPOINT_OFFSET):
+						channel_array[2].target_temperature = control_parameters.value_to_set;
+						break;																							
+				}
+			}
 			modbus_request_pending_flag = false;
 		}
 	}
+}
+
+uint8_t power_percent_to_voltage(int16_t power)
+{
+	return power * MAX_FAN_VOLTAGE /  100;
 }
 
 
