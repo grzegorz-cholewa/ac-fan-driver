@@ -11,12 +11,12 @@ uint8_t info_request_head[] = {DEVICE_ID, FUNC_READ};
 
 control_params control_parameters; 
 
-uint8_t get_first_byte(uint16_t two_byte) 
+uint8_t get_high_byte(uint16_t two_byte) 
 {
 	return ((two_byte >> 8) & 0xFF); // MSB 
 }
 
-uint8_t get_second_byte(uint16_t two_byte) 
+uint8_t get_low_byte(uint16_t two_byte) 
 {
 	
 	return (two_byte & 0xFF); // LSB
@@ -41,14 +41,14 @@ void modbus_send_info_response(int16_t * info_registers, uint8_t registers_numbe
 	/* Add data registers */
 	for (int i = 0; i < registers_number; i++)
 	{
-		*(response_buffer + 3 + 2*i) =  get_first_byte(*(info_registers + i));
-		*(response_buffer + 3 + 2*i + 1) =  get_second_byte(*(info_registers + i));
+		*(response_buffer + 3 + 2*i) =  get_high_byte(*(info_registers + i));
+		*(response_buffer + 3 + 2*i + 1) =  get_low_byte(*(info_registers + i));
 	}
 
 	/* Add CRC */
 	uint16_t crc_value = usMBCRC16(response_buffer, frame_len-2);
-	*(response_buffer + 3 + 2*registers_number) = get_first_byte(crc_value);
-	*(response_buffer + 3 + 2*registers_number) = get_second_byte(crc_value);
+	*(response_buffer + 3 + 2*registers_number) = get_low_byte(crc_value);
+	*(response_buffer + 4 + 2*registers_number) = get_high_byte(crc_value);
 	
 	rs485_transmit_byte_array(response_buffer, frame_len);
 }

@@ -41,9 +41,9 @@ typedef struct
 	int16_t value_to_set;	
 }control_params;
 
-uint8_t get_first_byte(uint16_t two_byte);
+uint8_t get_high_byte(uint16_t two_byte);
 
-uint8_t get_second_byte(uint16_t two_byte);
+uint8_t get_low_byte(uint16_t two_byte);
 
 uint16_t get_short(uint8_t * first_byte_pointer);
 
