@@ -62,7 +62,6 @@ void rs485_transmit_from_buffer(void)
 	}
 	else
 	{
-		delay_us(150);
 		rs485_transmitter_disable();
 		bytes_to_transmit = 0;
 		tx_buffer_pointer = uart_tx_buffer;
