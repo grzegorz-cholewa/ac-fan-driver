@@ -60,8 +60,6 @@ void modbus_get_info_registers(struct register_t  * data, uint16_t data_length);
 
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size);
 
-control_params modbus_get_control_params(void);
-
 void modbus_init(struct register_t * modbus_registers_pointer);
 
 bool are_registers_valid(struct register_t * first_register, uint8_t registers_number);

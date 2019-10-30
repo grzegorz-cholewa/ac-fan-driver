@@ -11,7 +11,6 @@
 #include <ntc.h>
 #include <rs485.h>
 #include <modbus.h>
-#include <crc.h>
 
 /* TYPE DEFINITIONS */
 typedef enum
@@ -357,13 +356,16 @@ int main (void)
 		if (modbus_request_pending_flag == true)
 		{
 			update_modbus_registers(channel_array); // TBD - not needed on control
+			if (modbus_frame_byte_counter > 0)
+				led_blink(2, 100);
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
+			
+			modbus_request_pending_flag = false;
+			
 			if (request_type == REQUEST_TYPE_WRITE)
 			{
 				update_app_data(channel_array);
 			}
-			
-			modbus_request_pending_flag = false;
 		}
 	}
 }
