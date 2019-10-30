@@ -4,12 +4,17 @@
 #include <crc.h>
 #include <string.h>
 
-int16_t info_registers[INFO_REGISTERS_NUMBER];
+struct register_t * modbus_registers;
 
 uint8_t control_request_head[] = {DEVICE_ID, FUNC_WRITE};
 uint8_t info_request_head[] = {DEVICE_ID, FUNC_READ};
 
 control_params control_parameters; 
+
+void modbus_init(struct register_t * modbus_registers_pointer)
+{
+	modbus_registers = modbus_registers_pointer;
+}
 
 uint8_t get_high_byte(uint16_t two_byte) 
 {
@@ -27,10 +32,9 @@ uint16_t get_short(uint8_t * first_byte_pointer)
 	return (short) (*first_byte_pointer << 8 | *(first_byte_pointer+1));
 }
 
-
-void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number)
+void modbus_send_info_response(struct register_t * first_register, uint8_t registers_number)
 { 
-	uint8_t response_buffer[5 + 2 * INFO_REGISTERS_NUMBER]; // max array size is needed when all registers are read back
+	uint8_t response_buffer[5 + 2 * REGISTERS_RANGE]; // max array size is needed when all registers are read back
 	uint8_t frame_len = 3 + 2*registers_number + 2;
 	
 	/* Add constant elements */
@@ -41,8 +45,8 @@ void modbus_send_info_response(int16_t * info_registers, uint8_t registers_numbe
 	/* Add data registers */
 	for (int i = 0; i < registers_number; i++)
 	{
-		*(response_buffer + 3 + 2*i) =  get_high_byte(*(info_registers + i));
-		*(response_buffer + 3 + 2*i + 1) =  get_low_byte(*(info_registers + i));
+		*(response_buffer + 3 + 2*i) =  get_high_byte((first_register + i)->value);
+		*(response_buffer + 3 + 2*i + 1) =  get_low_byte((first_register + i)->value);
 	}
 
 	/* Add CRC */
@@ -53,9 +57,9 @@ void modbus_send_info_response(int16_t * info_registers, uint8_t registers_numbe
 	rs485_transmit_byte_array(response_buffer, frame_len);
 }
 
-void modbus_get_info_registers(int16_t * data, uint16_t data_length)
+void modbus_get_info_registers(struct register_t  * data, uint16_t data_length)
 {
-	memcpy(info_registers, data, data_length);
+	memcpy(modbus_registers, data, data_length);
 }	
 
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
@@ -64,7 +68,7 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	{
         uint8_t first_address_offset = get_short(frame+2);
         uint8_t registers_number = get_short(frame+4);
-        modbus_send_info_response(info_registers + first_address_offset, registers_number);
+        modbus_send_info_response(modbus_registers + first_address_offset, registers_number);
 		return REQUEST_TYPE_READ;
 	}
 	

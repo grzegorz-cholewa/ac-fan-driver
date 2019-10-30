@@ -13,6 +13,7 @@
 /* DATA ADDRESSES */
 #define ADDR_OFFSET 40001
 //#define CTRL_REGISTERS_NUMBER 6
+#define REGISTERS_RANGE 19
 #define CTRL_CH1_POWER_OFFSET 0
 #define CTRL_CH2_POWER_OFFSET 1
 #define CTRL_CH3_POWER_OFFSET 2
@@ -41,18 +42,26 @@ typedef struct
 	int16_t value_to_set;	
 }control_params;
 
+struct register_t
+{
+	bool active;
+	int16_t value;
+};
+
 uint8_t get_high_byte(uint16_t two_byte);
 
 uint8_t get_low_byte(uint16_t two_byte);
 
 uint16_t get_short(uint8_t * first_byte_pointer);
 
-void modbus_send_info_response(int16_t * info_registers, uint8_t registers_number);
+void modbus_send_info_response(struct register_t * first_register, uint8_t registers_number);
 
-void modbus_get_info_registers(int16_t * data, uint16_t data_length);
+void modbus_get_info_registers(struct register_t  * data, uint16_t data_length);
 
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size);
 
 control_params modbus_get_control_params(void);
+
+void modbus_init(struct register_t * modbus_registers_pointer);
 
 #endif /* MODBUS_H_ */

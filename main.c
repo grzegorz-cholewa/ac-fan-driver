@@ -45,8 +45,8 @@ sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
 uint16_t temperature_error_state = 0;
 uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
-int16_t info_registers[INFO_REGISTERS_NUMBER];
 uint8_t modbus_frame_byte_counter = 0;
+static struct register_t modbus_registers[REGISTERS_RANGE];
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -62,6 +62,7 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length);
 void send_debug_info(channel_t * channel_array);
 void update_info_registers(channel_t * channel_array);
 uint8_t power_percent_to_voltage(int16_t power);
+uint8_t voltage_to_power_percent(uint8_t voltage);
 
 /* FUNCTION DEFINITIONS */
 uint16_t check_temperatures(sensors_t * sensor_array)
@@ -246,20 +247,50 @@ void send_debug_info(channel_t * channel_array)
 		rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
+void init_info_registers(channel_t * channel_array)
+{
+	modbus_registers[0].active = true;
+	modbus_registers[1].active = true;
+	modbus_registers[2].active = true;
+	modbus_registers[3].active = true;
+	modbus_registers[4].active = true;
+	modbus_registers[5].active = true;
+	modbus_registers[5].active = false;
+	modbus_registers[6].active = false;
+	modbus_registers[7].active = false;
+	modbus_registers[8].active = true;
+	modbus_registers[9].active = true;
+	modbus_registers[10].active = true;
+	modbus_registers[11].active = true;
+	modbus_registers[12].active = true;
+	modbus_registers[13].active = true;
+	modbus_registers[14].active = true;
+	modbus_registers[15].active = true;
+	modbus_registers[16].active = true;
+	modbus_registers[17].active = true;
+	modbus_registers[18].active = true;
+	update_info_registers(channel_array);
+}
+
+
 void update_info_registers(channel_t * channel_array)
 {
-	info_registers[0] = sensor_values.temperatures[0];
-	info_registers[1] = sensor_values.temperatures[1];
-	info_registers[2] = sensor_values.temperatures[2];
-	info_registers[3] = sensor_values.temperatures[3];
-	info_registers[4] = sensor_values.temperatures[4];
-	info_registers[5] = sensor_values.temperatures[5];
-	info_registers[6] = channel_array[0].mean_voltage,
-	info_registers[7] = channel_array[1].mean_voltage,
-	info_registers[8] = channel_array[2].mean_voltage,
-	info_registers[9] = temperature_error_state;
-	
-	modbus_get_info_registers(info_registers, INFO_REGISTERS_NUMBER);
+	modbus_registers[0].value = voltage_to_power_percent(channel_array[0].mean_voltage);
+	modbus_registers[1].value = voltage_to_power_percent(channel_array[1].mean_voltage);
+	modbus_registers[2].value = voltage_to_power_percent(channel_array[2].mean_voltage);
+	modbus_registers[3].value = channel_array[0].target_temperature;
+	modbus_registers[4].value = channel_array[1].target_temperature;
+	modbus_registers[5].value = channel_array[2].target_temperature;
+	modbus_registers[9].value = sensor_values.temperatures[0];
+	modbus_registers[10].value = sensor_values.temperatures[1];
+	modbus_registers[11].value = sensor_values.temperatures[2];
+	modbus_registers[12].value = sensor_values.temperatures[3];
+	modbus_registers[13].value = sensor_values.temperatures[4];
+	modbus_registers[14].value = sensor_values.temperatures[5];
+	modbus_registers[15].value = channel_array[0].mean_voltage;
+	modbus_registers[16].value = channel_array[1].mean_voltage;
+	modbus_registers[17].value = channel_array[2].mean_voltage;
+	modbus_registers[18].value = temperature_error_state;
 }
 
 
@@ -278,6 +309,8 @@ int main (void)
 	led_blink(3, 50);
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(channel_array, FAN_NUMBER);
+	modbus_init(modbus_registers);
+	init_info_registers(channel_array);
 	
 	while(1)
 	{
@@ -294,7 +327,9 @@ int main (void)
 		
 		if (modbus_request_pending_flag == true)
 		{
+			update_info_registers(channel_array); // TBD - not needed on control
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
+			
 			
 			if (request_type == REQUEST_TYPE_WRITE)
 			{
@@ -334,7 +369,7 @@ int main (void)
 			}
 			else
 			{
-				update_info_registers(channel_array);
+				;
 			}
 			
 			modbus_request_pending_flag = false;
@@ -345,6 +380,11 @@ int main (void)
 uint8_t power_percent_to_voltage(int16_t power)
 {
 	return power * MAX_FAN_VOLTAGE /  100;
+}
+
+uint8_t voltage_to_power_percent(uint8_t voltage)
+{
+	return 100 * voltage / MAX_FAN_VOLTAGE;
 }
 
 
