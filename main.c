@@ -255,10 +255,10 @@ void init_info_registers(channel_t * channel_array)
 	modbus_registers[3].active = true;
 	modbus_registers[4].active = true;
 	modbus_registers[5].active = true;
-	modbus_registers[5].active = false;
+	modbus_registers[5].active = true;
 	modbus_registers[6].active = false;
 	modbus_registers[7].active = false;
-	modbus_registers[8].active = true;
+	modbus_registers[8].active = false;
 	modbus_registers[9].active = true;
 	modbus_registers[10].active = true;
 	modbus_registers[11].active = true;

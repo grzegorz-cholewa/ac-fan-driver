@@ -60,24 +60,41 @@ void modbus_send_info_response(struct register_t * first_register, uint8_t regis
 void modbus_get_info_registers(struct register_t  * data, uint16_t data_length)
 {
 	memcpy(modbus_registers, data, data_length);
-}	
+}
+
+bool are_registers_valid(struct register_t * first_register, uint8_t registers_number)
+{
+	for (int i = 0; i < registers_number; i++)
+	{
+		if ( (first_register + i)->active == false ) // found register that is not used
+			return false;
+	}
+	return true;
+}
 
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 {
 	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
 	{
-        uint8_t first_address_offset = get_short(frame+2);
-        uint8_t registers_number = get_short(frame+4);
-        modbus_send_info_response(modbus_registers + first_address_offset, registers_number);
-		return REQUEST_TYPE_READ;
+        uint16_t first_address_offset = get_short(frame+2);
+        uint16_t registers_number = get_short(frame+4);
+		if ( are_registers_valid(modbus_registers + first_address_offset, registers_number) )
+		{
+			modbus_send_info_response(modbus_registers + first_address_offset, registers_number);
+			return REQUEST_TYPE_READ;
+		}
 	}
 	
 	else if (memcmp(frame, control_request_head, sizeof(control_request_head)) == 0)
 	{
-		rs485_transmit_byte_array(frame, frame_size); // send echo as response
+		
 		control_parameters.register_position = get_short(frame+2);
 		control_parameters.value_to_set = get_short(frame+4);
-		return REQUEST_TYPE_WRITE;
+		if ( are_registers_valid(modbus_registers + control_parameters.register_position, 1) )
+		{
+			rs485_transmit_byte_array(frame, frame_size); // send echo as response
+			return REQUEST_TYPE_WRITE;
+		}
 	}
 	else 
 		return -1;
