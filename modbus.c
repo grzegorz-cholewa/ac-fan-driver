@@ -87,17 +87,19 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	
 	else if (memcmp(frame, control_request_head, sizeof(control_request_head)) == 0)
 	{
-		
 		control_parameters.register_position = get_short(frame+2);
 		control_parameters.value_to_set = get_short(frame+4);
 		if ( are_registers_valid(modbus_registers + control_parameters.register_position, 1) )
 		{
+			(modbus_registers + control_parameters.register_position)->value = control_parameters.value_to_set;
+			uint8_t data[] = {'0x01', '0x02', 0x03, '0x04'};
+			rs485_transmit_byte_array(data, 4);
 			rs485_transmit_byte_array(frame, frame_size); // send echo as response
 			return REQUEST_TYPE_WRITE;
 		}
 	}
-	else 
-		return -1;
+
+	return -1;
 }
 
 control_params modbus_get_control_params(void)

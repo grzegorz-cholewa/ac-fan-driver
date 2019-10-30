@@ -64,4 +64,6 @@ control_params modbus_get_control_params(void);
 
 void modbus_init(struct register_t * modbus_registers_pointer);
 
+bool are_registers_valid(struct register_t * first_register, uint8_t registers_number);
+
 #endif /* MODBUS_H_ */

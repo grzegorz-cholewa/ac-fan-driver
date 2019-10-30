@@ -31,7 +31,7 @@ typedef struct
 	port_pin_t gate_pin;
 	const uint8_t temp_sensor_index;
 	channel_work_state_t work_state;
-	uint16_t target_temperature;
+	int16_t setpoint;
 	uint16_t mean_voltage; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 	gate_state_t state;
@@ -60,7 +60,9 @@ void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(channel_t * channel_array, uint8_t array_length);
 void send_debug_info(channel_t * channel_array);
-void update_info_registers(channel_t * channel_array);
+void init_modbus_registers(channel_t * channel_array);
+void update_modbus_registers(channel_t * channel_array);
+void update_app_data(channel_t * channel_array);
 uint8_t power_percent_to_voltage(int16_t power);
 uint8_t voltage_to_power_percent(uint8_t voltage);
 
@@ -225,7 +227,7 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 		if (channel_array[i].work_state == WORK_STATE_AUTO)
 		{
 			channel_array[i].mean_voltage = pi_regulator(sensor_values.temperatures[channel_array[i].temp_sensor_index],
-											channel_array[i].target_temperature,
+											channel_array[i].setpoint,
 											sensor_values.adc_values[channel_array[i].temp_sensor_index]);			
 		}
 		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].mean_voltage);
@@ -247,7 +249,7 @@ void send_debug_info(channel_t * channel_array)
 		rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
-void init_info_registers(channel_t * channel_array)
+void init_modbus_registers(channel_t * channel_array)
 {
 	modbus_registers[0].active = true;
 	modbus_registers[1].active = true;
@@ -269,18 +271,18 @@ void init_info_registers(channel_t * channel_array)
 	modbus_registers[16].active = true;
 	modbus_registers[17].active = true;
 	modbus_registers[18].active = true;
-	update_info_registers(channel_array);
+	update_modbus_registers(channel_array);
 }
 
 
-void update_info_registers(channel_t * channel_array)
+void update_modbus_registers(channel_t * channel_array)
 {
 	modbus_registers[0].value = voltage_to_power_percent(channel_array[0].mean_voltage);
 	modbus_registers[1].value = voltage_to_power_percent(channel_array[1].mean_voltage);
 	modbus_registers[2].value = voltage_to_power_percent(channel_array[2].mean_voltage);
-	modbus_registers[3].value = channel_array[0].target_temperature;
-	modbus_registers[4].value = channel_array[1].target_temperature;
-	modbus_registers[5].value = channel_array[2].target_temperature;
+	modbus_registers[3].value = channel_array[0].setpoint;
+	modbus_registers[4].value = channel_array[1].setpoint;
+	modbus_registers[5].value = channel_array[2].setpoint;
 	modbus_registers[9].value = sensor_values.temperatures[0];
 	modbus_registers[10].value = sensor_values.temperatures[1];
 	modbus_registers[11].value = sensor_values.temperatures[2];
@@ -291,6 +293,33 @@ void update_info_registers(channel_t * channel_array)
 	modbus_registers[16].value = channel_array[1].mean_voltage;
 	modbus_registers[17].value = channel_array[2].mean_voltage;
 	modbus_registers[18].value = temperature_error_state;
+}
+
+void update_app_data(channel_t * channel_array)
+{
+	if (modbus_registers[0].value > 100)
+		channel_array[0].work_state = WORK_STATE_AUTO;
+	else
+		channel_array[0].work_state = WORK_STATE_MANUAL;
+	channel_array[0].mean_voltage = power_percent_to_voltage(modbus_registers[0].value);
+		
+	if (modbus_registers[1].value > 100)
+		channel_array[1].work_state = WORK_STATE_AUTO;
+	else
+		channel_array[1].work_state = WORK_STATE_MANUAL;
+	channel_array[1].mean_voltage = power_percent_to_voltage(modbus_registers[1].value);
+
+	if (modbus_registers[0].value > 100)
+		channel_array[0].work_state = WORK_STATE_AUTO;
+	else
+		channel_array[0].work_state = WORK_STATE_MANUAL;
+	channel_array[0].mean_voltage = power_percent_to_voltage(modbus_registers[0].value);
+		
+	channel_array[0].setpoint = modbus_registers[3].value;
+
+	channel_array[1].setpoint = modbus_registers[4].value;
+
+	channel_array[2].setpoint = modbus_registers[5].value;
 }
 
 
@@ -310,7 +339,7 @@ int main (void)
 	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
 	update_working_parameters(channel_array, FAN_NUMBER);
 	modbus_init(modbus_registers);
-	init_info_registers(channel_array);
+	init_modbus_registers(channel_array);
 	
 	while(1)
 	{
@@ -327,49 +356,11 @@ int main (void)
 		
 		if (modbus_request_pending_flag == true)
 		{
-			update_info_registers(channel_array); // TBD - not needed on control
+			update_modbus_registers(channel_array); // TBD - not needed on control
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
-			
-			
 			if (request_type == REQUEST_TYPE_WRITE)
 			{
-				control_params control_parameters = modbus_get_control_params();
-				switch (control_parameters.register_position)
-				{
-					case (CTRL_CH1_POWER_OFFSET):
-						if (control_parameters.value_to_set > 100)
-							channel_array[0].work_state = WORK_STATE_AUTO;
-						else
-							channel_array[0].work_state = WORK_STATE_MANUAL;
-							channel_array[0].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
-						break;
-					case (CTRL_CH2_POWER_OFFSET):
-						if (control_parameters.value_to_set > 100)
-							channel_array[1].work_state = WORK_STATE_AUTO;
-						else
-							channel_array[1].work_state = WORK_STATE_MANUAL;
-							channel_array[1].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);
-					case (CTRL_CH3_POWER_OFFSET):
-						if (control_parameters.value_to_set > 100)
-							channel_array[2].work_state = WORK_STATE_AUTO;
-						else
-							channel_array[2].work_state = WORK_STATE_MANUAL;
-							channel_array[2].mean_voltage = power_percent_to_voltage(control_parameters.value_to_set);						
-						break;					
-					case (CTRL_NTC1_SETPOINT_OFFSET):
-						channel_array[0].target_temperature = control_parameters.value_to_set;
-						break;
-					case (CTRL_NTC2_SETPOINT_OFFSET):
-						channel_array[1].target_temperature = control_parameters.value_to_set;
-						break;	
-					case (CTRL_NTC3_SETPOINT_OFFSET):
-						channel_array[2].target_temperature = control_parameters.value_to_set;
-						break;																							
-				}
-			}
-			else
-			{
-				;
+				update_app_data(channel_array);
 			}
 			
 			modbus_request_pending_flag = false;

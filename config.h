@@ -2,6 +2,17 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+/* DEBUG SWITCHES */
+#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
+//#define SEND_DEBUG_INFO_OVER_RS 1
+//#define ON_EVALBOARD 1
+#ifdef ON_EVALBOARD
+#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
+#define F_CPU 16000000
+#else
+#define LED_PIN IOPORT_CREATE_PIN(PORTD, 3)
+#endif
+
 /* PIN DEFINITIONS */
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // source for INT0 interrupt
 #define FAN1_DRIVE_PIN			IOPORT_CREATE_PIN(PORTD, 5) // signal for gate of triac driving fan1
@@ -35,16 +46,6 @@
 #define RS_TX_BUFFER_SIZE 100
 #define RS_RX_BUFFER_SIZE 50
 
-/* DEBUG SWITCHES */
-#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
-//#define SEND_DEBUG_INFO_OVER_RS 1
-//#define ON_EVALBOARD 1
-#ifdef ON_EVALBOARD
-	#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5) // evalboard LED
-	#define F_CPU 16000000
-#else
-	#define LED_PIN IOPORT_CREATE_PIN(PORTD, 3)
-#endif
 
 /* CONSTANTS */
 #define PI (3.14)
