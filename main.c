@@ -8,7 +8,7 @@
 #include <math.h>
 #include <asf.h> 
 #include <config.h>
-#include <temperature.h>
+#include <ntc.h>
 #include <rs485.h>
 #include <modbus.h>
 #include <crc.h>

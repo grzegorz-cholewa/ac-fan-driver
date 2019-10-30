@@ -1,5 +1,5 @@
 
-#include <temperature.h>
+#include <ntc.h>
 
 // lookup table for temperature reads; index is ADC value and values are in Celcius Degree
 // this table is for: NTC 1k@25C with 200Ohm pull-down, beta = 3730
