@@ -64,7 +64,7 @@ bool are_registers_valid(struct register_t * first_register, uint8_t registers_n
 {
 	for (int i = 0; i < registers_number; i++)
 	{
-		if ( (first_register + i)->active == false ) // found register that is not used
+		if ( (first_register + i)->active == false ) // found register that is not initialized
 			return false;
 	}
 	return true;
@@ -76,6 +76,10 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	{
         uint16_t first_address_offset = get_short(frame+2);
         uint16_t registers_number = get_short(frame+4);
+		
+		if (first_address_offset+ registers_number > REGISTERS_RANGE-1)
+			return -1; // index out of range
+				
 		if ( are_registers_valid(modbus_registers + first_address_offset, registers_number) )
 		{
 			modbus_send_info_response(modbus_registers + first_address_offset, registers_number);
@@ -87,6 +91,10 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	{
 		uint16_t register_position = get_short(frame+2);
 		int16_t value_to_set = get_short(frame+4);
+		
+		if (register_position >= REGISTERS_RANGE-1)
+			return -1;
+		
 		if ( are_registers_valid(modbus_registers + register_position, 1) )
 		{
 			(modbus_registers + register_position)->value = value_to_set;
