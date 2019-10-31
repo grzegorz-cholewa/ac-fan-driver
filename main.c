@@ -12,12 +12,8 @@
 #include <rs485.h>
 #include <modbus.h>
 
-/* TYPE DEFINITIONS */
-typedef enum
-{
-	WORK_STATE_AUTO,
-	WORK_STATE_MANUAL
-} channel_work_state_t;
+#define WORK_STATE_MANUAL 0
+#define WORK_STATE_AUTO 1
 
 typedef enum 
 {
@@ -29,7 +25,7 @@ typedef struct
 {
 	port_pin_t gate_pin;
 	const uint8_t temp_sensor_index;
-	channel_work_state_t work_state;
+	uint8_t work_state;
 	int16_t setpoint;
 	uint16_t output_power; // values from 0 to 256
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
@@ -251,38 +247,25 @@ void send_debug_info(channel_t * channel_array)
 
 void init_modbus_registers(channel_t * channel_array)
 {
-	modbus_registers[0].active = true;
-	modbus_registers[1].active = true;
-	modbus_registers[2].active = true;
-	modbus_registers[3].active = true;
-	modbus_registers[4].active = true;
-	modbus_registers[5].active = true;
-	modbus_registers[5].active = true;
-	modbus_registers[6].active = false;
-	modbus_registers[7].active = false;
-	modbus_registers[8].active = false;
-	modbus_registers[9].active = true;
-	modbus_registers[10].active = true;
-	modbus_registers[11].active = true;
-	modbus_registers[12].active = true;
-	modbus_registers[13].active = true;
-	modbus_registers[14].active = true;
-	modbus_registers[15].active = true;
-	modbus_registers[16].active = true;
-	modbus_registers[17].active = true;
-	modbus_registers[18].active = true;
+	for (int i = 0; i < REGISTERS_RANGE; i++)
+	{
+		modbus_registers[i].active = true;
+	}
 	update_modbus_registers(channel_array);
 }
 
 
 void update_modbus_registers(channel_t * channel_array)
 {
-	modbus_registers[0].value = channel_array[0].output_power;
-	modbus_registers[1].value = channel_array[1].output_power;
-	modbus_registers[2].value = channel_array[2].output_power;
-	modbus_registers[3].value = channel_array[0].setpoint;
-	modbus_registers[4].value = channel_array[1].setpoint;
-	modbus_registers[5].value = channel_array[2].setpoint;
+	modbus_registers[0].value = channel_array[0].work_state;
+	modbus_registers[1].value = channel_array[1].work_state;
+	modbus_registers[2].value = channel_array[2].work_state;
+	modbus_registers[3].value = channel_array[0].output_power;
+	modbus_registers[4].value = channel_array[1].output_power;
+	modbus_registers[5].value = channel_array[2].output_power;
+	modbus_registers[6].value = channel_array[0].setpoint;
+	modbus_registers[7].value = channel_array[1].setpoint;
+	modbus_registers[8].value = channel_array[2].setpoint;
 	modbus_registers[9].value = sensor_values.temperatures[0];
 	modbus_registers[10].value = sensor_values.temperatures[1];
 	modbus_registers[11].value = sensor_values.temperatures[2];
@@ -297,35 +280,24 @@ void update_modbus_registers(channel_t * channel_array)
 
 void update_app_data(channel_t * channel_array)
 {
-	if (modbus_registers[0].value > 100)
-		channel_array[0].work_state = WORK_STATE_AUTO;
-	else
-	{
-		channel_array[0].work_state = WORK_STATE_MANUAL;
-		channel_array[0].output_power = modbus_registers[0].value;
-	}
-		
-	if (modbus_registers[1].value > 100)
-		channel_array[1].work_state = WORK_STATE_AUTO;
-	else
-	{
-		channel_array[1].work_state = WORK_STATE_MANUAL;
-		channel_array[1].output_power = modbus_registers[1].value;			
-	}
+	channel_array[0].work_state = modbus_registers[0].value;
+	channel_array[1].work_state = modbus_registers[1].value;
+	channel_array[2].work_state = modbus_registers[2].value;
 	
-	if (modbus_registers[0].value > 100)
-		channel_array[0].work_state = WORK_STATE_AUTO;
-	else
-	{
-		channel_array[0].work_state = WORK_STATE_MANUAL;
-		channel_array[0].output_power = modbus_registers[0].value;
-	}
+	if (channel_array[0].work_state == WORK_STATE_MANUAL)
+		channel_array[0].output_power = modbus_registers[3].value;
 		
-	channel_array[0].setpoint = modbus_registers[3].value;
+	if (channel_array[1].work_state == WORK_STATE_MANUAL)
+		channel_array[1].output_power = modbus_registers[4].value;
+		
+	if (channel_array[2].work_state == WORK_STATE_MANUAL)
+		channel_array[2].output_power = modbus_registers[5].value;
+	
+	channel_array[0].setpoint = modbus_registers[6].value;
 
-	channel_array[1].setpoint = modbus_registers[4].value;
+	channel_array[1].setpoint = modbus_registers[7].value;
 
-	channel_array[2].setpoint = modbus_registers[5].value;
+	channel_array[2].setpoint = modbus_registers[8].value;
 }
 
 
