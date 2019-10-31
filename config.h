@@ -26,12 +26,13 @@
 #define GATE_DRIVING_TIMER_RESOLUTION_US 100
 #define ZERO_CROSSING_OFFSET_US 260 // for now it is measured value
 #define GATE_PULSE_TIME_US 100
-#define MIN_FAN_VOLTAGE 50 // this is min value for triac gate driver
-#define MAX_FAN_VOLTAGE 225 // // this is max value for triac gate driver
-#define FAN_FULL_ON_VOLTAGE 255
-#define FAN_OFF_VOLTAGE 0
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
+#define MAX_FAN_VOLTAGE 230
+#define FULL_OF_OUTPUT_POWER 0
+#define MIN_OUTPUT_POWER 10
+#define MAX_OUTPUT_POWER 95
+#define FULL_ON_OUTPUT_POWER 100
 #define MAX_GATE_DELAY_US 9500
 #define MIN_GATE_DELAY_US 500
 #define INIT_TARGET_TEMPERATURE 70
