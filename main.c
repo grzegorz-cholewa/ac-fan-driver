@@ -363,16 +363,16 @@ int main (void)
 		if (modbus_request_pending_flag == true)
 		{
 			update_modbus_registers(channel_array); // TBD - not needed on control
-			if (modbus_frame_byte_counter > 0)
-				led_blink(2, 100);
+
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
-			
-			modbus_request_pending_flag = false;
 			
 			if (request_type == REQUEST_TYPE_WRITE)
 			{
 				update_app_data(channel_array);
 			}
+			
+			modbus_request_pending_flag = false;
+			modbus_frame_byte_counter = 0;
 		}
 	}
 }
@@ -405,7 +405,6 @@ ISR (TIMER1_COMPA_vect)
 	{
 		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
 		modbus_request_pending_flag = true;
-		modbus_frame_byte_counter = 0;
 	}
 }
 
