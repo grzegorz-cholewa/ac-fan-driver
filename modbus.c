@@ -30,9 +30,9 @@ uint16_t get_short(uint8_t * first_byte_pointer)
 	return (short) (*first_byte_pointer << 8 | *(first_byte_pointer+1));
 }
 
-void modbus_send_info_response(struct register_t * first_register, uint8_t registers_number)
+void send_info_response(struct register_t * first_register, uint8_t registers_number)
 { 
-	uint8_t response_buffer[5 + 2 * REGISTERS_RANGE]; // max array size is needed when all registers are read back
+	uint8_t response_buffer[5 + 2 * REGISTERS_NUMBER]; // max array size is needed when all registers are read back
 	uint8_t frame_len = 3 + 2*registers_number + 2;
 	
 	/* Add constant elements */
@@ -55,7 +55,7 @@ void modbus_send_info_response(struct register_t * first_register, uint8_t regis
 	rs485_transmit_byte_array(response_buffer, frame_len);
 }
 
-void modbus_get_info_registers(struct register_t  * data, uint16_t data_length)
+void get_info_registers(struct register_t  * data, uint16_t data_length)
 {
 	memcpy(modbus_registers, data, data_length);
 }
@@ -77,27 +77,27 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
         uint16_t first_address_offset = get_short(frame+2);
         uint16_t registers_number = get_short(frame+4);
 		
-		if (first_address_offset+ registers_number > REGISTERS_RANGE-1)
+		if (first_address_offset + registers_number-1 > MAX_REGISTERS_OFFSET)
 			return -1; // index out of range
 				
 		if ( are_registers_valid(modbus_registers + first_address_offset, registers_number) )
 		{
-			modbus_send_info_response(modbus_registers + first_address_offset, registers_number);
+			send_info_response(modbus_registers + first_address_offset, registers_number);
 			return REQUEST_TYPE_READ;
 		}
 	}
 	
 	else if ( memcmp(frame, control_request_head, sizeof(control_request_head)) == 0 )
 	{
-		uint16_t register_position = get_short(frame+2);
+		uint16_t register_offset = get_short(frame+2);
 		int16_t value_to_set = get_short(frame+4);
 		
-		if (register_position >= REGISTERS_RANGE-1)
+		if (register_offset > MAX_REGISTERS_OFFSET)
 			return -1;
 		
-		if ( are_registers_valid(modbus_registers + register_position, 1) )
+		if ( are_registers_valid(modbus_registers + register_offset, 1) )
 		{
-			(modbus_registers + register_position)->value = value_to_set;
+			(modbus_registers + register_offset)->value = value_to_set;
 			rs485_transmit_byte_array(frame, frame_size); // send echo as response
 			return REQUEST_TYPE_WRITE;
 		}

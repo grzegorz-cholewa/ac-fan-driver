@@ -4,7 +4,7 @@
 
 /* DEBUG SWITCHES */
 //#define MOCK_OUTPUT_VOLTAGE_REGULATION 1 // activates proportional regulation instead of PI
-#define SEND_DEBUG_INFO_OVER_RS 1
+//#define SEND_DEBUG_INFO_OVER_RS 1
 //#define ON_EVALBOARD 1
 #ifdef ON_EVALBOARD
 	#define LED_PIN IOPORT_CREATE_PIN(PORTB, 5)
@@ -19,18 +19,17 @@
 #define MAIN_TIMER_RESOLUTION_US 100
 #define HALF_SINE_PERIOD_US 10000
 #define GATE_PULSE_TIME_US 100
-#define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in error alert
+#define MIN_WORKING_TEMPERATURE 5 // exceeding this value results in error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
 #define MAX_FAN_VOLTAGE 230
 #define FULL_OFF_OUTPUT_VOLTAGE_PERCENT 0
-#define MIN_OUTPUT_VOLTAGE_PERCENT 10 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
+#define MIN_OUTPUT_VOLTAGE_PERCENT 20 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
 #define MAX_OUTPUT_VOLTAGE_PERCENT 90 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
 #define FULL_ON_OUTPUT_VOLTAGE_PERCENT 100
 #define ZERO_CROSSING_DETECTION_OFFSET_US 260
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
 #define INIT_TARGET_TEMPERATURE_C 30
-
 #define PI_KP 1
 #define PI_TIME_CONST_S 5
 #define TIME_BETWEEN_MODBUS_FRAMES_US 50000

@@ -41,10 +41,10 @@ uint32_t pi_pulse_delay_counter_us = 0;
 uint32_t rx_time_interval_counter = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
-uint8_t temperature_error_state = TEMPERATURE_STATUS_NO_ERROR;
+int16_t temperature_error_state = TEMPERATURE_STATUS_NO_ERROR;
 uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
 uint16_t modbus_frame_byte_counter = 0;
-static struct register_t modbus_registers[REGISTERS_RANGE];
+static struct register_t modbus_registers[REGISTERS_NUMBER];
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
@@ -70,18 +70,11 @@ uint16_t check_temperatures(sensors_t * sensor_array)
 	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
 	{
 		int16_t temperature = sensor_array->temperatures[i];
-		if(temperature > MAX_WORKING_TEMPERATURE)
+		if ( (temperature > MAX_WORKING_TEMPERATURE) || (temperature < MIN_WORKING_TEMPERATURE) )
 		{
 			gpio_set_pin_high(ERROR_OUT_PIN);
 			return TEMPERATURE_STATUS_ERROR;	
 		}
-
-		if(temperature < MIN_WORKING_TEMPERATURE)
-		{
-			gpio_set_pin_low(ERROR_OUT_PIN);
-			return TEMPERATURE_STATUS_ERROR;
-		}
-
 	}
 	return TEMPERATURE_STATUS_NO_ERROR;
 }
@@ -253,7 +246,7 @@ void send_debug_info(channel_t * channel_array)
 
 void init_modbus_registers(channel_t * channel_array)
 {
-	for (int i = 0; i < REGISTERS_RANGE; i++)
+	for (int i = 0; i < REGISTERS_NUMBER; i++)
 	{
 		modbus_registers[i].active = true;
 	}
@@ -278,10 +271,7 @@ void update_modbus_registers(channel_t * channel_array)
 	modbus_registers[12].value = sensor_values.temperatures[3];
 	modbus_registers[13].value = sensor_values.temperatures[4];
 	modbus_registers[14].value = sensor_values.temperatures[5];
-	modbus_registers[15].value = channel_array[0].output_power;
-	modbus_registers[16].value = channel_array[1].output_power;
-	modbus_registers[17].value = channel_array[2].output_power;
-	modbus_registers[18].value = temperature_error_state;
+	modbus_registers[15].value = temperature_error_state;
 }
 
 void update_app_data(channel_t * channel_array)
