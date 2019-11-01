@@ -13,17 +13,10 @@ typedef struct
 	int16_t temperatures[ADC_SENSOR_NUMBER];
 } sensors_t;
 
-
 /* 10-bit ADC init */
-void adc_init(void);
-
-/* single ADC read from selected channels, returns 10-bit value */
-uint16_t adc_value_read(uint8_t adc_channel);
+void ntc_adc_init(void);
 
 /* reads temperature from all sensors */
-void read_temperatures(sensors_t * sensor_values);
-
-/* converts 10bit ADC read value to temperature in Celsius degree */
-int adc_to_temperature(uint16_t adc_value);
+void ntc_read_temperatures(sensors_t * sensor_values);
 
 #endif /* TEMPERATURE_H_ */

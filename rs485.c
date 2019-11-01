@@ -3,14 +3,20 @@
 #include <config.h>
 #include <rs485.h>
 
+/* STATIC FUNCTION PROTOTYPES */
+void transmit_byte(uint8_t data);
+void transmitter_enable(void);
+void transmitter_disable(void);
+bool rx_buffer_full(void);
+
+/* GLOBAL VARIABLES */
 uint8_t uart_tx_buffer[RS_TX_BUFFER_SIZE];
-uint8_t * tx_buffer_pointer = uart_tx_buffer;
-
 uint8_t uart_rx_buffer[RS_RX_BUFFER_SIZE];
+uint8_t * tx_buffer_pointer = uart_tx_buffer;
 uint8_t * rx_buffer_pointer = uart_rx_buffer;
-
 uint16_t bytes_to_transmit = 0;
 
+/* FUNCTION DEFINITIONS */
 void rs485_init(void)
 {
 	UBRR0H = (unsigned char)(MYUBRR>>8); // set baud rate
@@ -28,7 +34,7 @@ void rs485_init(void)
 	ioport_configure_pin(RS_DRIVER_ENABLE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
 }
 
-void rs485_transmit_byte(uint8_t data)
+void transmit_byte(uint8_t data)
 {
 	while (!(UCSR0A & (1<<UDRE0))) // wait for empty transmit buffer
 	;
@@ -37,18 +43,18 @@ void rs485_transmit_byte(uint8_t data)
 
 void rs485_transmit_byte_array(uint8_t * byte_array, uint16_t array_size)
 {
-	rs485_transmitter_enable();
+	transmitter_enable();
 	memcpy(uart_tx_buffer, byte_array, array_size);
 	bytes_to_transmit = array_size;
 	rs485_transmit_from_buffer();
 }
 
-void rs485_transmitter_enable(void)
+void transmitter_enable(void)
 {
 	gpio_set_pin_high(RS_DRIVER_ENABLE_PIN);
 }
 
-void rs485_transmitter_disable(void)
+void transmitter_disable(void)
 {
 	gpio_set_pin_low(RS_DRIVER_ENABLE_PIN);
 }
@@ -57,12 +63,12 @@ void rs485_transmit_from_buffer(void)
 {
 	if (bytes_to_transmit > (tx_buffer_pointer-uart_tx_buffer))
 	{
-		rs485_transmit_byte(*tx_buffer_pointer);
+		transmit_byte(*tx_buffer_pointer);
 		tx_buffer_pointer++;
 	}
 	else
 	{
-		rs485_transmitter_disable();
+		transmitter_disable();
 		bytes_to_transmit = 0;
 		tx_buffer_pointer = uart_tx_buffer;
 	}
@@ -76,7 +82,7 @@ bool rs485_ready_to_send(void)
 		return false;
 }
 
-bool rs485_rx_buffer_full()
+bool rx_buffer_full(void)
 {
 	if (rx_buffer_pointer <= uart_rx_buffer + RS_RX_BUFFER_SIZE)
 		return false;
@@ -94,7 +100,7 @@ bool rs485_rx_buffer_empty(void)
 
 bool rs485_get_byte_to_buffer()
 {
-	if (!rs485_rx_buffer_full())
+	if (!rx_buffer_full())
 	{
 		uint8_t received_byte = usart_get(&USART0);
 		*rx_buffer_pointer = received_byte;

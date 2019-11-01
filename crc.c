@@ -51,7 +51,7 @@ static const uint8_t aucCRCLo[] = {
 };
 
 
-uint16_t usMBCRC16(uint8_t * pucFrame, uint16_t usLen)
+uint16_t crc16_modbus(uint8_t * pucFrame, uint16_t usLen)
 {
     uint8_t ucCRCHi = 0xFF;
     uint8_t ucCRCLo = 0xFF;

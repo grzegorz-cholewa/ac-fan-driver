@@ -1,13 +1,26 @@
 #include <asf.h>
-#include <rs485.h>
-#include <modbus.h>
-#include <crc.h>
 #include <string.h>
+#include <crc.h>
+#include <modbus.h>
+#include <rs485.h>
 
+#define MAX_REGISTERS_OFFSET (REGISTERS_NUMBER-1)
+#define MODBUS_FUNCTION_READ 0x03
+#define MODBUS_FUNCTION_WRITE 0x06
+
+/* STATIC FUNCTION DECLARATIONS */
+uint8_t get_high_byte(uint16_t two_byte);
+uint8_t get_low_byte(uint16_t two_byte);
+uint16_t get_short(uint8_t * first_byte_pointer);
+bool are_registers_valid(struct register_t * first_register, uint8_t registers_number);
+void send_info_response(struct register_t * first_register, uint8_t registers_number);
+void get_info_registers(struct register_t  * data, uint16_t data_length);
 struct register_t * modbus_registers;
 
-uint8_t control_request_head[] = {DEVICE_ID, FUNC_WRITE};
-uint8_t info_request_head[] = {DEVICE_ID, FUNC_READ};
+/* GLOBAL VARIABLES */
+uint8_t control_request_head[] = {DEVICE_ID, MODBUS_FUNCTION_WRITE};
+uint8_t info_request_head[] = {DEVICE_ID, MODBUS_FUNCTION_READ};
+
 
 void modbus_init(struct register_t * modbus_registers_pointer)
 {
@@ -30,6 +43,41 @@ uint16_t get_short(uint8_t * first_byte_pointer)
 	return (short) (*first_byte_pointer << 8 | *(first_byte_pointer+1));
 }
 
+int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
+{
+	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
+	{
+		uint16_t first_address_offset = get_short(frame+2);
+		uint16_t registers_number = get_short(frame+4);
+		
+		if (first_address_offset + registers_number-1 > MAX_REGISTERS_OFFSET)
+		return -1; // index out of range
+		
+		if ( are_registers_valid(modbus_registers + first_address_offset, registers_number) )
+		{
+			send_info_response(modbus_registers + first_address_offset, registers_number);
+			return REQUEST_TYPE_READ;
+		}
+	}
+	
+	else if ( memcmp(frame, control_request_head, sizeof(control_request_head)) == 0 )
+	{
+		uint16_t register_offset = get_short(frame+2);
+		int16_t value_to_set = get_short(frame+4);
+		
+		if (register_offset > MAX_REGISTERS_OFFSET)
+		return -1;
+		
+		if ( are_registers_valid(modbus_registers + register_offset, 1) )
+		{
+			(modbus_registers + register_offset)->value = value_to_set;
+			rs485_transmit_byte_array(frame, frame_size); // send echo as response
+			return REQUEST_TYPE_WRITE;
+		}
+	}
+	return -1;
+}
+
 void send_info_response(struct register_t * first_register, uint8_t registers_number)
 { 
 	uint8_t response_buffer[5 + 2 * REGISTERS_NUMBER]; // max array size is needed when all registers are read back
@@ -37,7 +85,7 @@ void send_info_response(struct register_t * first_register, uint8_t registers_nu
 	
 	/* Add constant elements */
 	*(response_buffer + 0) = DEVICE_ID;
-	*(response_buffer + 1) = FUNC_READ;
+	*(response_buffer + 1) = MODBUS_FUNCTION_READ;
 	*(response_buffer + 2) = registers_number;
 	
 	/* Add data registers */
@@ -48,7 +96,7 @@ void send_info_response(struct register_t * first_register, uint8_t registers_nu
 	}
 
 	/* Add CRC */
-	uint16_t crc_value = usMBCRC16(response_buffer, frame_len-2);
+	uint16_t crc_value = crc16_modbus(response_buffer, frame_len-2);
 	*(response_buffer + 3 + 2*registers_number) = get_low_byte(crc_value);
 	*(response_buffer + 4 + 2*registers_number) = get_high_byte(crc_value);
 	
@@ -68,40 +116,4 @@ bool are_registers_valid(struct register_t * first_register, uint8_t registers_n
 			return false;
 	}
 	return true;
-}
-
-int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
-{
-	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
-	{
-        uint16_t first_address_offset = get_short(frame+2);
-        uint16_t registers_number = get_short(frame+4);
-		
-		if (first_address_offset + registers_number-1 > MAX_REGISTERS_OFFSET)
-			return -1; // index out of range
-				
-		if ( are_registers_valid(modbus_registers + first_address_offset, registers_number) )
-		{
-			send_info_response(modbus_registers + first_address_offset, registers_number);
-			return REQUEST_TYPE_READ;
-		}
-	}
-	
-	else if ( memcmp(frame, control_request_head, sizeof(control_request_head)) == 0 )
-	{
-		uint16_t register_offset = get_short(frame+2);
-		int16_t value_to_set = get_short(frame+4);
-		
-		if (register_offset > MAX_REGISTERS_OFFSET)
-			return -1;
-		
-		if ( are_registers_valid(modbus_registers + register_offset, 1) )
-		{
-			(modbus_registers + register_offset)->value = value_to_set;
-			rs485_transmit_byte_array(frame, frame_size); // send echo as response
-			return REQUEST_TYPE_WRITE;
-		}
-	}
-
-	return -1;
 }

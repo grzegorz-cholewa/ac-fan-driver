@@ -58,7 +58,7 @@ void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(channel_t * channel_array, uint8_t array_length);
 void send_debug_info(channel_t * channel_array);
-void init_modbus_registers(channel_t * channel_array);
+void init_modbus_registers(void);
 void update_modbus_registers(channel_t * channel_array);
 void update_app_data(channel_t * channel_array);
 uint8_t power_percent_to_voltage(int16_t power);
@@ -214,7 +214,7 @@ void timer_start(uint32_t time_us)
 
 void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 {
-	read_temperatures(&sensor_values);
+	ntc_read_temperatures(&sensor_values);
 	temperature_error_state = check_temperatures(&sensor_values);
 	
 	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
@@ -231,11 +231,11 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 
 void send_debug_info(channel_t * channel_array)
 {
-	char debug_info[50];
+	char debug_info[100];
 	snprintf(debug_info, sizeof(debug_info),
-	//"ADC:  %d %d %d %d %d %d\nTEMP: %d %d %d %d %d %d\nC1 %d C2 %d C3 %d ER %d\n",
-	"T: %d %d %d %d %d %d V %d %d %d ER %d\n",
-	//sensor_values.adc_values[0], sensor_values.adc_values[1], sensor_values.adc_values[2], sensor_values.adc_values[3], sensor_values.adc_values[4], sensor_values.adc_values[5],
+	"ADC %d %d %d %d %d %d\nT %d %d %d %d %d %d\nV %d %d %d\nER %d\n",
+	//"T: %d %d %d %d %d %d V %d %d %d ER %d\n",
+	sensor_values.adc_values[0], sensor_values.adc_values[1], sensor_values.adc_values[2], sensor_values.adc_values[3], sensor_values.adc_values[4], sensor_values.adc_values[5],
 	sensor_values.temperatures[0], sensor_values.temperatures[1], sensor_values.temperatures[2], sensor_values.temperatures[3], sensor_values.temperatures[4], sensor_values.temperatures[5],
 	channel_array[0].output_power, channel_array[1].output_power, channel_array[2].output_power,
 	temperature_error_state
@@ -244,15 +244,13 @@ void send_debug_info(channel_t * channel_array)
 		rs485_transmit_byte_array((uint8_t *)debug_info, strlen(debug_info));
 }
 
-void init_modbus_registers(channel_t * channel_array)
+void init_modbus_registers(void)
 {
 	for (int i = 0; i < REGISTERS_NUMBER; i++)
 	{
 		modbus_registers[i].active = true;
 	}
-	update_modbus_registers(channel_array);
 }
-
 
 void update_modbus_registers(channel_t * channel_array)
 {
@@ -290,9 +288,7 @@ void update_app_data(channel_t * channel_array)
 		channel_array[2].output_power = modbus_registers[5].value;
 	
 	channel_array[0].setpoint = modbus_registers[6].value;
-
 	channel_array[1].setpoint = modbus_registers[7].value;
-
 	channel_array[2].setpoint = modbus_registers[8].value;
 }
 
@@ -306,14 +302,14 @@ int main (void)
 	};
 	
 	gpio_init();
-	adc_init();
+	ntc_adc_init();
 	interrupt_init();
 	rs485_init();
 	led_blink(3, 50);
 	timer_start(MAIN_TIMER_RESOLUTION_US);
 	update_working_parameters(channel_array, OUTPUT_CHANNELS_NUMBER);
 	modbus_init(modbus_registers);
-	init_modbus_registers(channel_array);
+	init_modbus_registers();
 	
 	while(1)
 	{

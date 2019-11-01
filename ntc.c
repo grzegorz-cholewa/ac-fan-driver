@@ -1,5 +1,12 @@
-
 #include <ntc.h>
+
+/* STATIC FUNCTIONS DECLARATIONS */
+/* converts 10bit ADC read value to temperature in Celsius degree */
+int adc_to_temperature(uint16_t adc_value);
+
+/* single ADC read from selected channels, returns 10-bit value */
+uint16_t adc_value_read(uint8_t adc_channel);
+
 
 // lookup table for temperature reads; index is ADC value and values are in Celcius Degree
 // this table is for: NTC 1k@25C with 200Ohm pull-down, beta = 3730
@@ -57,7 +64,7 @@ int NTC_table[513] = {
 };
 
 
-void adc_init(void)
+void ntc_adc_init(void)
 {
 	ADMUX |= (1<<REFS0); // VREF set to AVCC with external cap at AREF pin
 	ADCSRA |= 1<<ADEN; // enable ADC
@@ -72,7 +79,7 @@ uint16_t adc_value_read(uint8_t adc_channel)
 	return ADC;
 }
 
-void read_temperatures(sensors_t * sensor_values)
+void ntc_read_temperatures(sensors_t * sensor_values)
 {
 	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
 	{
