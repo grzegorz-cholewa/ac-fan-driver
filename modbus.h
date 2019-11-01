@@ -3,9 +3,6 @@
 #ifndef MODBUS_H_
 #define MODBUS_H_
 
-#define TEMPERATURE_STATUS_OK 0x000
-#define TEMPERATURE_STATUS_ERROR 0x001
-
 #define DEVICE_ID 0x01
 #define FUNC_READ 0x03
 #define FUNC_WRITE 0x06

@@ -15,6 +15,9 @@
 #define WORK_STATE_MANUAL 0
 #define WORK_STATE_AUTO 1
 
+#define TEMPERATURE_STATUS_NO_ERROR 0
+#define TEMPERATURE_STATUS_ERROR 1
+
 typedef enum 
 {
 	GATE_IDLE,
@@ -38,9 +41,9 @@ uint32_t pi_pulse_delay_counter_us = 0;
 uint32_t rx_time_interval_counter = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
-uint16_t temperature_error_state = 0;
+uint8_t temperature_error_state = TEMPERATURE_STATUS_NO_ERROR;
 uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
-uint8_t modbus_frame_byte_counter = 0;
+uint16_t modbus_frame_byte_counter = 0;
 static struct register_t modbus_registers[REGISTERS_RANGE];
 
 /* FUNCTION PROTOTYPES */
@@ -50,7 +53,7 @@ uint32_t get_gate_delay_us(uint8_t output_power);
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
-uint16_t pi_regulator(int current_temp, uint16_t target_temperature, uint16_t debug_adc_read);
+int16_t pi_regulator(int current_temp, uint16_t target_temperature, uint16_t debug_adc_read);
 void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(channel_t * channel_array, uint8_t array_length);
@@ -69,30 +72,32 @@ uint16_t check_temperatures(sensors_t * sensor_array)
 		int16_t temperature = sensor_array->temperatures[i];
 		if(temperature > MAX_WORKING_TEMPERATURE)
 		{
-			return TEMPERATURE_STATUS_ERROR;
+			gpio_set_pin_high(ERROR_OUT_PIN);
+			return TEMPERATURE_STATUS_ERROR;	
 		}
 
 		if(temperature < MIN_WORKING_TEMPERATURE)
 		{
+			gpio_set_pin_low(ERROR_OUT_PIN);
 			return TEMPERATURE_STATUS_ERROR;
 		}
 
 	}
-	return TEMPERATURE_STATUS_OK;
+	return TEMPERATURE_STATUS_NO_ERROR;
 }
 
 void drive_fans(channel_t * channel_array, uint8_t array_length)
 {
-	for (uint8_t i = 0; i < FAN_NUMBER; i++)
+	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
 		cli(); // enter critical section
 
-		if (channel_array[i].output_power<=MIN_OUTPUT_POWER)
+		if (channel_array[i].output_power<=MIN_OUTPUT_VOLTAGE_PERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
 				
-		else if (channel_array[i].output_power>=MAX_OUTPUT_POWER)
+		else if (channel_array[i].output_power>=MAX_OUTPUT_VOLTAGE_PERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
@@ -122,7 +127,7 @@ uint32_t get_gate_delay_us(uint8_t output_power)
 	if (gate_delay < MIN_GATE_DELAY_US)
 		gate_delay = MIN_GATE_DELAY_US;
 
-	return gate_delay - ZERO_CROSSING_OFFSET_US;
+	return gate_delay - ZERO_CROSSING_DETECTION_OFFSET_US;
 }
 
 void gpio_init(void)
@@ -133,6 +138,7 @@ void gpio_init(void)
 	ioport_configure_pin(FAN1_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN2_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
 	ioport_configure_pin(FAN3_DRIVE_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_HIGH);
+	ioport_configure_pin(ERROR_OUT_PIN, IOPORT_DIR_OUTPUT | IOPORT_INIT_LOW);
 }
 
 void interrupt_init(void)
@@ -154,30 +160,30 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-uint16_t pi_regulator(int current_temp, uint16_t target_temperature, uint16_t debug_adc_read)
+int16_t pi_regulator(int current_temp, uint16_t target_temperature, uint16_t debug_adc_read)
 {
+	int16_t output_voltage_percent;
 	static float PI_KI = PI_KP/PI_TIME_CONST_S;
 	static int error;
 	static int integral;
-	uint16_t output_power;
 	
-	error = INIT_TARGET_TEMPERATURE - current_temp; // negative number means that temperature is higher then target
+	error = INIT_TARGET_TEMPERATURE_C - current_temp; // negative number means that temperature is higher then target
 	integral = integral + error;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-		output_power = debug_adc_read/4; // voltage proportional to ADC read
+		output_voltage_percent = debug_adc_read/8; // voltage proportional to ADC read
 	
 	#else // use PID regulator
-		output_power =  - PI_KP * error - PI_KI * integral;
+		output_voltage_percent =  - (PI_KP * error) - (PI_KI * integral);
 	#endif
 	
-	if (output_power >= MAX_OUTPUT_POWER)
-		output_power = FULL_ON_OUTPUT_POWER;
+	if (output_voltage_percent >= MAX_OUTPUT_VOLTAGE_PERCENT)
+		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
 	
-	if (output_power <= MIN_OUTPUT_POWER)
-		output_power = FULL_OF_OUTPUT_POWER;
+	if (output_voltage_percent <= MIN_OUTPUT_VOLTAGE_PERCENT)
+		output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_PERCENT;
 	
-	return output_power;
+	return output_voltage_percent;
 };
 
 void set_gate_state(channel_t * fan, gate_state_t state)
@@ -218,7 +224,7 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 	read_temperatures(&sensor_values);
 	temperature_error_state = check_temperatures(&sensor_values);
 	
-	for (uint8_t i = 0; i < FAN_NUMBER; i++)
+	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
 		if (channel_array[i].work_state == WORK_STATE_AUTO)
 		{
@@ -303,10 +309,10 @@ void update_app_data(channel_t * channel_array)
 
 int main (void)
 {
-	static channel_t channel_array[FAN_NUMBER] = {
-		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
-		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE},
-		{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE, 0, 0, GATE_IDLE}
+	static channel_t channel_array[OUTPUT_CHANNELS_NUMBER] = {
+		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE_C, 0, 0, GATE_IDLE},
+		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE_C, 0, 0, GATE_IDLE},
+		{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_TARGET_TEMPERATURE_C, 0, 0, GATE_IDLE}
 	};
 	
 	gpio_init();
@@ -314,18 +320,18 @@ int main (void)
 	interrupt_init();
 	rs485_init();
 	led_blink(3, 50);
-	timer_start(GATE_DRIVING_TIMER_RESOLUTION_US);
-	update_working_parameters(channel_array, FAN_NUMBER);
+	timer_start(MAIN_TIMER_RESOLUTION_US);
+	update_working_parameters(channel_array, OUTPUT_CHANNELS_NUMBER);
 	modbus_init(modbus_registers);
 	init_modbus_registers(channel_array);
 	
 	while(1)
 	{
-		drive_fans(channel_array, FAN_NUMBER);		
+		drive_fans(channel_array, OUTPUT_CHANNELS_NUMBER);		
 		
 		if(pi_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
-			update_working_parameters(channel_array, FAN_NUMBER);
+			update_working_parameters(channel_array, OUTPUT_CHANNELS_NUMBER);
 			pi_pulse_delay_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
 				send_debug_info(channel_array);
@@ -369,9 +375,9 @@ ISR (INT0_vect)
 /* ISR for periodical timer overflow */
 ISR (TIMER1_COMPA_vect)
 {
-	gate_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
-	pi_pulse_delay_counter_us += GATE_DRIVING_TIMER_RESOLUTION_US;
-	rx_time_interval_counter += GATE_DRIVING_TIMER_RESOLUTION_US;
+	gate_pulse_delay_counter_us += MAIN_TIMER_RESOLUTION_US;
+	pi_pulse_delay_counter_us += MAIN_TIMER_RESOLUTION_US;
+	rx_time_interval_counter += MAIN_TIMER_RESOLUTION_US;
 	
 	if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
 	{
