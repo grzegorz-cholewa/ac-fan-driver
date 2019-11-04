@@ -30,7 +30,7 @@ typedef struct
 	const uint8_t temp_sensor_index;
 	uint8_t work_state;
 	int16_t setpoint;
-	uint16_t output_power; // values from 0 to 256
+	int16_t output_voltage_percent;
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 	gate_state_t state;
 } channel_t;
@@ -53,7 +53,7 @@ uint32_t get_gate_delay_us(uint8_t output_power);
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
-int16_t pi_regulator(int current_temp, uint16_t target_temperature, uint16_t debug_adc_read);
+int16_t pi_regulator(int16_t current_temp, int16_t target_temperature, uint16_t debug_adc_read);
 void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(channel_t * channel_array, uint8_t array_length);
@@ -62,7 +62,6 @@ void init_modbus_registers(void);
 void update_modbus_registers(channel_t * channel_array);
 void update_app_data(channel_t * channel_array);
 uint8_t power_percent_to_voltage(int16_t power);
-uint8_t voltage_to_power_percent(uint8_t voltage);
 
 /* FUNCTION DEFINITIONS */
 uint16_t check_temperatures(sensors_t * sensor_array)
@@ -85,12 +84,12 @@ void drive_fans(channel_t * channel_array, uint8_t array_length)
 	{
 		cli(); // enter critical section
 
-		if (channel_array[i].output_power<=MIN_OUTPUT_VOLTAGE_PERCENT)
+		if (channel_array[i].output_voltage_percent<=MIN_OUTPUT_VOLTAGE_PERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
 				
-		else if (channel_array[i].output_power>=MAX_OUTPUT_VOLTAGE_PERCENT)
+		else if (channel_array[i].output_voltage_percent>=MAX_OUTPUT_VOLTAGE_PERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
@@ -136,9 +135,9 @@ void gpio_init(void)
 
 void interrupt_init(void)
 {
-	EICRA |= (1 << ISC00 ) | (1 << ISC01);    // set INT0 to trigger on rising edge
-	EIMSK |= (1 << INT0);     // activate INT0
-	sei();                    // activate interrupts
+	EICRA |= (1 << ISC00 ) | (1 << ISC01); // set INT0 to trigger on rising edge
+	EIMSK |= (1 << INT0); // activate INT0
+	sei(); // activate interrupts
 }
 
 void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
@@ -153,28 +152,32 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-int16_t pi_regulator(int current_temp, uint16_t target_temperature, uint16_t debug_adc_read)
+int16_t pi_regulator(int16_t current_temp, int16_t setpoint, uint16_t debug_adc_read)
 {
 	int16_t output_voltage_percent;
-	static float PI_KI = PI_KP/PI_TIME_CONST_S;
-	static int error;
-	static int integral;
+	static int16_t error = 0;
+	static int16_t integral = 0;
 	
-	error = INIT_TARGET_TEMPERATURE_C - current_temp; // negative number means that temperature is higher then target
+	error = setpoint - current_temp;
 	integral = integral + error;
 	
-	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-		output_voltage_percent = debug_adc_read/8; // voltage proportional to ADC read
+	if (integral > 100)
+		integral = 100;
 	
-	#else // use PID regulator
-		output_voltage_percent =  - (PI_KP * error) - (PI_KI * integral);
-	#endif
+	if (integral < -100)
+		integral = -100;
+	
+	output_voltage_percent = (-1) * (PI_KP * error  + PI_KI * integral);
 	
 	if (output_voltage_percent >= MAX_OUTPUT_VOLTAGE_PERCENT)
 		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
 	
 	if (output_voltage_percent <= MIN_OUTPUT_VOLTAGE_PERCENT)
 		output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_PERCENT;
+	
+	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
+		output_voltage_percent = debug_adc_read/8;
+	#endif
 	
 	return output_voltage_percent;
 };
@@ -221,11 +224,11 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 	{
 		if (channel_array[i].work_state == WORK_STATE_AUTO)
 		{
-			channel_array[i].output_power = pi_regulator(sensor_values.temperatures[channel_array[i].temp_sensor_index],
+			channel_array[i].output_voltage_percent = pi_regulator(sensor_values.temperatures[channel_array[i].temp_sensor_index],
 											channel_array[i].setpoint,
 											sensor_values.adc_values[channel_array[i].temp_sensor_index]);			
 		}
-		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].output_power);
+		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].output_voltage_percent);
 	}
 }
 
@@ -234,10 +237,9 @@ void send_debug_info(channel_t * channel_array)
 	char debug_info[100];
 	snprintf(debug_info, sizeof(debug_info),
 	"ADC %d %d %d %d %d %d\nT %d %d %d %d %d %d\nV %d %d %d\nER %d\n",
-	//"T: %d %d %d %d %d %d V %d %d %d ER %d\n",
 	sensor_values.adc_values[0], sensor_values.adc_values[1], sensor_values.adc_values[2], sensor_values.adc_values[3], sensor_values.adc_values[4], sensor_values.adc_values[5],
 	sensor_values.temperatures[0], sensor_values.temperatures[1], sensor_values.temperatures[2], sensor_values.temperatures[3], sensor_values.temperatures[4], sensor_values.temperatures[5],
-	channel_array[0].output_power, channel_array[1].output_power, channel_array[2].output_power,
+	channel_array[0].output_voltage_percent, channel_array[1].output_voltage_percent, channel_array[2].output_voltage_percent,
 	temperature_error_state
 	);
 	if (rs485_ready_to_send())
@@ -257,9 +259,9 @@ void update_modbus_registers(channel_t * channel_array)
 	modbus_registers[0].value = channel_array[0].work_state;
 	modbus_registers[1].value = channel_array[1].work_state;
 	modbus_registers[2].value = channel_array[2].work_state;
-	modbus_registers[3].value = channel_array[0].output_power;
-	modbus_registers[4].value = channel_array[1].output_power;
-	modbus_registers[5].value = channel_array[2].output_power;
+	modbus_registers[3].value = channel_array[0].output_voltage_percent;
+	modbus_registers[4].value = channel_array[1].output_voltage_percent;
+	modbus_registers[5].value = channel_array[2].output_voltage_percent;
 	modbus_registers[6].value = channel_array[0].setpoint;
 	modbus_registers[7].value = channel_array[1].setpoint;
 	modbus_registers[8].value = channel_array[2].setpoint;
@@ -278,15 +280,24 @@ void update_app_data(channel_t * channel_array)
 	channel_array[1].work_state = modbus_registers[1].value;
 	channel_array[2].work_state = modbus_registers[2].value;
 	
-	if (channel_array[0].work_state == WORK_STATE_MANUAL)
-		channel_array[0].output_power = modbus_registers[3].value;
-		
-	if (channel_array[1].work_state == WORK_STATE_MANUAL)
-		channel_array[1].output_power = modbus_registers[4].value;
-		
-	if (channel_array[2].work_state == WORK_STATE_MANUAL)
-		channel_array[2].output_power = modbus_registers[5].value;
+	if (modbus_registers[3].value != channel_array[0].output_voltage_percent) // if output value changed
+	{
+		channel_array[0].work_state = WORK_STATE_MANUAL;
+		channel_array[0].output_voltage_percent = modbus_registers[3].value;
+	}
 	
+	if (modbus_registers[4].value != channel_array[1].output_voltage_percent) // if output value changed
+	{
+		channel_array[1].work_state = WORK_STATE_MANUAL;
+		channel_array[1].output_voltage_percent = modbus_registers[4].value;
+	}
+		
+	if (modbus_registers[5].value != channel_array[2].output_voltage_percent) // if output value changed
+	{
+		channel_array[2].work_state = WORK_STATE_MANUAL;
+		channel_array[2].output_voltage_percent = modbus_registers[5].value;
+	}
+		
 	channel_array[0].setpoint = modbus_registers[6].value;
 	channel_array[1].setpoint = modbus_registers[7].value;
 	channel_array[2].setpoint = modbus_registers[8].value;
@@ -345,12 +356,6 @@ uint8_t power_percent_to_voltage(int16_t power)
 {
 	return power * MAX_FAN_VOLTAGE /  100;
 }
-
-uint8_t voltage_to_power_percent(uint8_t voltage)
-{
-	return 100 * voltage / MAX_FAN_VOLTAGE;
-}
-
 
 /* ISR for zero-crossing detection */
 ISR (INT0_vect)

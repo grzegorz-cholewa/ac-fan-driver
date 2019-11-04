@@ -19,7 +19,7 @@
 #define MAIN_TIMER_RESOLUTION_US 100
 #define HALF_SINE_PERIOD_US 10000
 #define GATE_PULSE_TIME_US 100
-#define MIN_WORKING_TEMPERATURE 5 // exceeding this value results in error alert
+#define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
 #define MAX_FAN_VOLTAGE 230
 #define FULL_OFF_OUTPUT_VOLTAGE_PERCENT 0
@@ -30,7 +30,8 @@
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
 #define INIT_TARGET_TEMPERATURE_C 30
-#define PI_KP 1
+#define PI_KP 3
+#define PI_KI 1
 #define PI_TIME_CONST_S 5
 #define TIME_BETWEEN_MODBUS_FRAMES_US 50000
 
