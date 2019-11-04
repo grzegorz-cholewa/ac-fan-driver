@@ -37,7 +37,7 @@ typedef struct
 
 /* GLOBAL VARIABLES */
 uint32_t gate_pulse_delay_counter_us = 0;
-uint32_t pi_pulse_delay_counter_us = 0;
+uint32_t update_parameter_timer_counter_us = 0;
 uint32_t rx_time_interval_counter = 0;
 sensors_t sensor_values;
 bool modbus_request_pending_flag = false;
@@ -45,10 +45,15 @@ int16_t temperature_error_state = TEMPERATURE_STATUS_NO_ERROR;
 uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
 uint16_t modbus_frame_byte_counter = 0;
 static struct register_t modbus_registers[REGISTERS_NUMBER];
+static channel_t channel_array[OUTPUT_CHANNELS_NUMBER] = {
+	{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE},
+	{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE},
+	{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE}
+};
 
 /* FUNCTION PROTOTYPES */
 uint16_t check_temperatures(sensors_t * sensor_array);
-void drive_fans(channel_t * channel_array, uint8_t array_length);
+void drive_fans(void);
 uint32_t get_gate_delay_us(uint8_t output_power);
 void gpio_init(void);
 void interrupt_init(void);
@@ -56,11 +61,11 @@ void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 int16_t pi_regulator(int16_t current_temp, int16_t target_temperature, uint16_t debug_adc_read);
 void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
-void update_working_parameters(channel_t * channel_array, uint8_t array_length);
-void send_debug_info(channel_t * channel_array);
+void update_working_parameters(void);
+void send_debug_info(void);
 void init_modbus_registers(void);
-void update_modbus_registers(channel_t * channel_array);
-void update_app_data(channel_t * channel_array);
+void update_modbus_registers(void);
+void update_app_data(void);
 uint8_t power_percent_to_voltage(int16_t power);
 
 /* FUNCTION DEFINITIONS */
@@ -78,23 +83,21 @@ uint16_t check_temperatures(sensors_t * sensor_array)
 	return TEMPERATURE_STATUS_NO_ERROR;
 }
 
-void drive_fans(channel_t * channel_array, uint8_t array_length)
+void drive_fans(void)
 {
 	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
-		cli(); // enter critical section
-
-		if (channel_array[i].output_voltage_percent<=MIN_OUTPUT_VOLTAGE_PERCENT)
+		if (channel_array[i].output_voltage_percent <= MIN_OUTPUT_VOLTAGE_PERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
 				
-		else if (channel_array[i].output_voltage_percent>=MAX_OUTPUT_VOLTAGE_PERCENT)
+		else if (channel_array[i].output_voltage_percent >= MAX_OUTPUT_VOLTAGE_PERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
 				
-		else if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (channel_array[i].activation_delay_us + GATE_PULSE_TIME_US)) )
+		else if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (channel_array[i].activation_delay_us + GATE_PULSE_MIN_TIME_US)) )
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
@@ -102,8 +105,6 @@ void drive_fans(channel_t * channel_array, uint8_t array_length)
 		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
-
-		sei(); // leave critical section
 	}
 }
 
@@ -182,21 +183,21 @@ int16_t pi_regulator(int16_t current_temp, int16_t setpoint, uint16_t debug_adc_
 	return output_voltage_percent;
 };
 
-void set_gate_state(channel_t * fan, gate_state_t state)
+void set_gate_state(channel_t * fan, gate_state_t pulse_state)
 {
-	if (fan->state == state)
+	if (fan->state == pulse_state)
 	{
 		return; // no state change
 	}
 	
-	fan->state = state;
+	fan->state = pulse_state;
 	
-	if (state == GATE_ACTIVE)
+	if (pulse_state == GATE_ACTIVE)
 	{
 		gpio_set_pin_low(fan->gate_pin); // optotransistor is active low
 	}
 	
-	if (state != GATE_ACTIVE)
+	if (pulse_state != GATE_ACTIVE)
 	{
 		gpio_set_pin_high(fan->gate_pin);
 	}
@@ -215,7 +216,7 @@ void timer_start(uint32_t time_us)
 	sei(); // enable interrupts
 }
 
-void update_working_parameters(channel_t * channel_array, uint8_t array_length)
+void update_working_parameters(void)
 {
 	ntc_read_temperatures(&sensor_values);
 	temperature_error_state = check_temperatures(&sensor_values);
@@ -232,7 +233,7 @@ void update_working_parameters(channel_t * channel_array, uint8_t array_length)
 	}
 }
 
-void send_debug_info(channel_t * channel_array)
+void send_debug_info(void)
 {
 	char debug_info[100];
 	snprintf(debug_info, sizeof(debug_info),
@@ -254,7 +255,7 @@ void init_modbus_registers(void)
 	}
 }
 
-void update_modbus_registers(channel_t * channel_array)
+void update_modbus_registers(void)
 {
 	modbus_registers[0].value = channel_array[0].work_state;
 	modbus_registers[1].value = channel_array[1].work_state;
@@ -274,7 +275,7 @@ void update_modbus_registers(channel_t * channel_array)
 	modbus_registers[15].value = temperature_error_state;
 }
 
-void update_app_data(channel_t * channel_array)
+void update_app_data(void)
 {
 	channel_array[0].work_state = modbus_registers[0].value;
 	channel_array[1].work_state = modbus_registers[1].value;
@@ -303,47 +304,51 @@ void update_app_data(channel_t * channel_array)
 	channel_array[2].setpoint = modbus_registers[8].value;
 }
 
+uint8_t power_percent_to_voltage(int16_t power)
+{
+	return power * MAX_FAN_VOLTAGE /  100;
+}
+
+
 
 int main (void)
 {
-	static channel_t channel_array[OUTPUT_CHANNELS_NUMBER] = {
-		{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE},
-		{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE},
-		{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE}
-	};
-	
 	gpio_init();
 	ntc_adc_init();
 	interrupt_init();
 	rs485_init();
 	led_blink(3, 50);
 	timer_start(MAIN_TIMER_RESOLUTION_US);
-	update_working_parameters(channel_array, OUTPUT_CHANNELS_NUMBER);
+	update_working_parameters();
 	modbus_init(modbus_registers);
 	init_modbus_registers();
 	
 	while(1)
 	{
-		drive_fans(channel_array, OUTPUT_CHANNELS_NUMBER);		
-		
-		if(pi_pulse_delay_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
+		if(update_parameter_timer_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
-			update_working_parameters(channel_array, OUTPUT_CHANNELS_NUMBER);
-			pi_pulse_delay_counter_us = 0;
+			update_working_parameters();
+			update_parameter_timer_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
-				send_debug_info(channel_array);
+				send_debug_info();
 			#endif
+		}
+		
+		if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
+		{
+			rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
+			modbus_request_pending_flag = true;
 		}
 		
 		if (modbus_request_pending_flag == true)
 		{
-			update_modbus_registers(channel_array); // TBD - not needed on control
+			update_modbus_registers(); // TBD - not needed on control
 
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
 			
 			if (request_type == REQUEST_TYPE_WRITE)
 			{
-				update_app_data(channel_array);
+				update_app_data();
 			}
 			
 			modbus_request_pending_flag = false;
@@ -352,10 +357,6 @@ int main (void)
 	}
 }
 
-uint8_t power_percent_to_voltage(int16_t power)
-{
-	return power * MAX_FAN_VOLTAGE /  100;
-}
 
 /* ISR for zero-crossing detection */
 ISR (INT0_vect)
@@ -366,8 +367,10 @@ ISR (INT0_vect)
 /* ISR for periodical timer overflow */
 ISR (TIMER1_COMPA_vect)
 {
+	drive_fans();
+	
 	gate_pulse_delay_counter_us += MAIN_TIMER_RESOLUTION_US;
-	pi_pulse_delay_counter_us += MAIN_TIMER_RESOLUTION_US;
+	update_parameter_timer_counter_us += MAIN_TIMER_RESOLUTION_US;
 	rx_time_interval_counter += MAIN_TIMER_RESOLUTION_US;
 	
 	if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )

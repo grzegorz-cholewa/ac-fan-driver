@@ -18,7 +18,7 @@
 #define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000
 #define MAIN_TIMER_RESOLUTION_US 100
 #define HALF_SINE_PERIOD_US 10000
-#define GATE_PULSE_TIME_US 100
+#define GATE_PULSE_MIN_TIME_US 100
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
 #define MAX_FAN_VOLTAGE 230
