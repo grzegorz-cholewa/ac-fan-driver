@@ -23,16 +23,15 @@
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
 #define MAX_FAN_VOLTAGE 230
 #define FULL_OFF_OUTPUT_VOLTAGE_PERCENT 0
-#define MIN_OUTPUT_VOLTAGE_PERCENT 20 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
+#define MIN_OUTPUT_VOLTAGE_PERCENT 10 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
 #define MAX_OUTPUT_VOLTAGE_PERCENT 90 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
 #define FULL_ON_OUTPUT_VOLTAGE_PERCENT 100
 #define ZERO_CROSSING_DETECTION_OFFSET_US 260
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
-#define INIT_TARGET_TEMPERATURE_C 30
-#define PI_KP 3
+#define INIT_CHANNEL_SETPOINT_C 30
+#define PI_KP 6
 #define PI_KI 1
-#define PI_TIME_CONST_S 5
 #define TIME_BETWEEN_MODBUS_FRAMES_US 50000
 
 /* RS485 PARAMETERS */
