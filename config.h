@@ -30,8 +30,8 @@
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
 #define INIT_CHANNEL_SETPOINT_C 30
-#define PI_KP 6
-#define PI_KI 1
+#define PI_KP 4
+#define PI_KI 2
 #define TIME_BETWEEN_MODBUS_FRAMES_US 50000
 
 /* RS485 PARAMETERS */

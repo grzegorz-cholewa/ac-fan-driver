@@ -2,7 +2,7 @@
 
 /* STATIC FUNCTIONS DECLARATIONS */
 /* converts 10bit ADC read value to temperature in Celsius degree */
-int adc_to_temperature(uint16_t adc_value);
+int16_t adc_to_temperature(uint16_t adc_value);
 
 /* single ADC read from selected channels, returns 10-bit value */
 uint16_t adc_value_read(uint8_t adc_channel);
@@ -88,7 +88,7 @@ void ntc_read_temperatures(sensors_t * sensor_values)
 	}
 }
 
-int adc_to_temperature(uint16_t adc_value){
+int16_t adc_to_temperature(uint16_t adc_value){
 	return NTC_table[adc_value/2]; // table consists of 512 elements, while 10-bit ADC have max value 1024
 };
 

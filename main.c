@@ -52,13 +52,13 @@ static channel_t channel_array[OUTPUT_CHANNELS_NUMBER] = {
 };
 
 /* FUNCTION PROTOTYPES */
-uint16_t check_temperatures(sensors_t * sensor_array);
+int16_t check_temperatures(sensors_t * sensor_array);
 void drive_fans(void);
 uint32_t get_gate_delay_us(uint8_t output_power);
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
-int16_t pi_regulator(int16_t current_temp, int16_t target_temperature, uint16_t debug_adc_read);
+int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t target_temperature, uint16_t debug_adc_read);
 void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(void);
@@ -69,7 +69,7 @@ void update_app_data(void);
 uint8_t power_percent_to_voltage(int16_t power);
 
 /* FUNCTION DEFINITIONS */
-uint16_t check_temperatures(sensors_t * sensor_array)
+int16_t check_temperatures(sensors_t * sensor_array)
 {	
 	for (int i = 0; i < ADC_SENSOR_NUMBER; i++)
 	{
@@ -153,22 +153,26 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-int16_t pi_regulator(int16_t current_temp, int16_t setpoint, uint16_t debug_adc_read)
+int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, uint16_t debug_adc_read)
 {
+	int16_t error;
+	static int16_t integral_error[3] = {0, 0, 0};
 	int16_t output_voltage_percent;
-	static int16_t error = 0;
-	static int16_t integral = 0;
 	
 	error = setpoint - current_temp;
-	integral = integral + error;
+	integral_error[channel] = integral_error[channel] + error;
 	
-	if (integral > 100)
-		integral = 100;
+	if (integral_error[channel] > 100)
+	{
+		integral_error[channel] = 100;
+	}
 	
-	if (integral < -100)
-		integral = -100;
+	if (integral_error[channel] < -100)
+	{	
+		integral_error[channel] = -100;
+	}
 	
-	output_voltage_percent = (-1) * (PI_KP * error  + PI_KI * integral);
+	output_voltage_percent = (-1) * (PI_KP * error  + PI_KI * integral_error[channel]);
 	
 	if (output_voltage_percent >= MAX_OUTPUT_VOLTAGE_PERCENT)
 		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
@@ -225,9 +229,9 @@ void update_working_parameters(void)
 	{
 		if (channel_array[i].work_state == WORK_STATE_AUTO)
 		{
-			channel_array[i].output_voltage_percent = pi_regulator(sensor_values.temperatures[channel_array[i].temp_sensor_index],
+			channel_array[i].output_voltage_percent = pi_regulator(i, sensor_values.temperatures[i],
 											channel_array[i].setpoint,
-											sensor_values.adc_values[channel_array[i].temp_sensor_index]);			
+											sensor_values.adc_values[i]);			
 		}
 		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].output_voltage_percent);
 	}
