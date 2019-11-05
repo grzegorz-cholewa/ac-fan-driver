@@ -334,16 +334,9 @@ int main (void)
 			#endif
 		}
 		
-		if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
-		{
-			rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
-			modbus_request_pending_flag = true;
-		}
-		
 		if (modbus_request_pending_flag == true)
 		{
-			update_modbus_registers(); // TBD - not needed on control
-
+			update_modbus_registers(); 
 			int8_t request_type = modbus_process_frame(incoming_modbus_frame, modbus_frame_byte_counter);
 			
 			if (request_type == REQUEST_TYPE_WRITE)
@@ -389,21 +382,30 @@ ISR(USART0_TX_vect)
 /* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
-	if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
+	if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
 	{
-		if (rs485_get_byte_to_buffer())
+		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
+		modbus_request_pending_flag = true;
+		return;
+	}
+	rx_time_interval_counter = 0;
+	
+	if (modbus_request_pending_flag == false)
+	{
+		if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
 		{
-			modbus_frame_byte_counter++;
+			if (rs485_get_byte_to_buffer())
+			{
+				modbus_frame_byte_counter++;
+			}
+			else
+			{
+				led_blink(1, 50);
+			}
 		}
 		else
 		{
-			led_blink(1, 50);
+			led_blink(2, 50);
 		}
-	}
-	else
-	{
-		led_blink(2, 50);
-	}
-	
-	rx_time_interval_counter = 0;
+	}	
 }
