@@ -160,24 +160,15 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, ui
 	int16_t output_voltage_percent;
 	
 	error = setpoint - current_temp;
+	
 	integral_error[channel] = integral_error[channel] + error;
 	
-	if (integral_error[channel] > 100)
-	{
-		integral_error[channel] = 100;
-	}
+	output_voltage_percent = (-1) * (PI_KP * error  + integral_error[channel]/TIME_CONST);
 	
-	if (integral_error[channel] < -100)
-	{	
-		integral_error[channel] = -100;
-	}
-	
-	output_voltage_percent = (-1) * (PI_KP * error  + PI_KI * integral_error[channel]);
-	
-	if (output_voltage_percent >= MAX_OUTPUT_VOLTAGE_PERCENT)
+	if (output_voltage_percent > MAX_OUTPUT_VOLTAGE_PERCENT)
 		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
 	
-	if (output_voltage_percent <= MIN_OUTPUT_VOLTAGE_PERCENT)
+	if (output_voltage_percent < MIN_OUTPUT_VOLTAGE_PERCENT)
 		output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_PERCENT;
 	
 	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
@@ -370,7 +361,7 @@ ISR (TIMER1_COMPA_vect)
 	update_parameter_timer_counter_us += MAIN_TIMER_RESOLUTION_US;
 	rx_time_interval_counter += MAIN_TIMER_RESOLUTION_US;
 	
-	if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
+	if ( (rx_time_interval_counter > MAX_TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
 	{
 		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
 		modbus_request_pending_flag = true;
@@ -386,7 +377,7 @@ ISR(USART0_TX_vect)
 /* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
-	if ( (rx_time_interval_counter > TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
+	if ( (rx_time_interval_counter > MAX_TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
 	{
 		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
 		modbus_request_pending_flag = true;
