@@ -77,9 +77,11 @@ int16_t check_temperatures(sensors_t * sensor_array)
 		if ( (temperature > MAX_WORKING_TEMPERATURE) || (temperature < MIN_WORKING_TEMPERATURE) )
 		{
 			gpio_set_pin_high(ERROR_OUT_PIN);
+			gpio_set_pin_high(LED_PIN);
 			return TEMPERATURE_STATUS_ERROR;	
 		}
 	}
+	gpio_set_pin_low(LED_PIN);
 	return TEMPERATURE_STATUS_NO_ERROR;
 }
 

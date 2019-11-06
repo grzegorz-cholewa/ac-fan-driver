@@ -15,7 +15,6 @@
 
 /* WORKING PARAMETERS */
 #define OUTPUT_CHANNELS_NUMBER 3
-#define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000
 #define MAIN_TIMER_RESOLUTION_US 100
 #define HALF_SINE_PERIOD_US 10000
 #define GATE_PULSE_MIN_TIME_US 100
@@ -23,12 +22,15 @@
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
 #define MAX_FAN_VOLTAGE 230
 #define FULL_OFF_OUTPUT_VOLTAGE_PERCENT 0
-#define MIN_OUTPUT_VOLTAGE_PERCENT 35 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
-#define MAX_OUTPUT_VOLTAGE_PERCENT 95 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
 #define FULL_ON_OUTPUT_VOLTAGE_PERCENT 100
 #define ZERO_CROSSING_DETECTION_OFFSET_US 260
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
+#define MIN_OUTPUT_VOLTAGE_PERCENT 35 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
+#define MAX_OUTPUT_VOLTAGE_PERCENT 95 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
+
+/* PI PARAMETERS */
+#define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000 // also period of triggering PI regulator
 #define INIT_CHANNEL_SETPOINT_C 50
 #define PI_KP 3
 #define TIME_CONST 10
