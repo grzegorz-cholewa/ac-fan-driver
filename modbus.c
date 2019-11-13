@@ -86,7 +86,7 @@ void send_info_response(struct register_t * first_register, uint8_t registers_nu
 	/* Add constant elements */
 	*(response_buffer + 0) = DEVICE_ID;
 	*(response_buffer + 1) = MODBUS_FUNCTION_READ;
-	*(response_buffer + 2) = registers_number;
+	*(response_buffer + 2) = 2*registers_number;
 	
 	/* Add data registers */
 	for (int i = 0; i < registers_number; i++)
