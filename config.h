@@ -26,21 +26,21 @@
 #define ZERO_CROSSING_DETECTION_OFFSET_US 260
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
-#define MIN_OUTPUT_VOLTAGE_PERCENT 35 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
-#define MAX_OUTPUT_VOLTAGE_PERCENT 95 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
+#define MIN_OUTPUT_VOLTAGE_DAGPERCENT 350 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
+#define MAX_OUTPUT_VOLTAGE_DAGPERCENT 1000 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
 
 /* PI PARAMETERS */
 #define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000 // also period of triggering PI regulator
-#define INIT_CHANNEL_SETPOINT_C 50
-#define PI_KP 3
+#define INIT_CHANNEL_SETPOINT_C 65
+#define PI_KP 5
 #define TIME_CONST 10
-#define MAX_TIME_BETWEEN_MODBUS_FRAMES_US 40075
 
 /* RS485 PARAMETERS */
 #define RS_BAUD_RATE 9600
 #define MYUBRR (F_CPU/16/RS_BAUD_RATE - 1)
 #define RS_TX_BUFFER_SIZE 100
 #define RS_RX_BUFFER_SIZE 50
+#define MAX_TIME_BETWEEN_MODBUS_FRAMES_US 4500 //((1000000/RS_BAUD_RATE)*11*4) //>((1000000/RS_BAUD_RATE)*11*4) //min 3.5 char between messages
 
 /* PIN DEFINITIONS */
 #define ZERO_CROSSING_PIN IOPORT_CREATE_PIN(PORTD, 2) // source for INT0 interrupt
