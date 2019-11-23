@@ -21,13 +21,13 @@
 #define MIN_WORKING_TEMPERATURE 0 // exceeding this value results in error alert
 #define MAX_WORKING_TEMPERATURE 90 // exceeding this value results in error alert
 #define MAX_FAN_VOLTAGE 230
-#define FULL_OFF_OUTPUT_VOLTAGE_PERCENT 0
-#define FULL_ON_OUTPUT_VOLTAGE_PERCENT 100
 #define ZERO_CROSSING_DETECTION_OFFSET_US 260
 #define MIN_GATE_DELAY_US 500
 #define MAX_GATE_DELAY_US 9500
 #define MIN_OUTPUT_VOLTAGE_DAGPERCENT 350 // if value is less then that, FULL_OFF_OUTPUT_POWER is set instead
 #define MAX_OUTPUT_VOLTAGE_DAGPERCENT 1000 // if value is bigger then that, FULL_ON_OUTPUT_VOLTAGE_PERCENT is set
+#define FULL_OFF_OUTPUT_VOLTAGE_PERCENT 0
+#define FULL_ON_OUTPUT_VOLTAGE_PERCENT 1000
 
 /* PI PARAMETERS */
 #define WORKING_PARAMETERS_UPDATE_PERIOD_US 1000000 // also period of triggering PI regulator

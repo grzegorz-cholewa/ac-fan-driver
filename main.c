@@ -155,31 +155,6 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-/*
-int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, uint16_t debug_adc_read)
-{
-	int16_t error;
-	static int16_t integral_error[3] = {0, 0, 0};
-	int16_t output_voltage_percent;
-	
-	error = setpoint - current_temp;
-	
-	integral_error[channel] = integral_error[channel] + error;
-	
-	output_voltage_percent = (-1) * (PI_KP * error  + integral_error[channel]/TIME_CONST);
-	
-	if (output_voltage_percent > MAX_OUTPUT_VOLTAGE_PERCENT)
-		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
-	
-	if (output_voltage_percent < MIN_OUTPUT_VOLTAGE_PERCENT)
-		output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_PERCENT;
-	
-	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-		output_voltage_percent = debug_adc_read/8;
-	#endif
-	
-	return output_voltage_percent;
-};*/
 
 int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, uint16_t debug_adc_read)
 {
