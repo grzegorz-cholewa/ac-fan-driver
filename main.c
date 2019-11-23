@@ -201,9 +201,6 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, ui
 
 	output_voltage_percent = PI_KP * error  + integral_error[channel]/TIME_CONST;
 	
-	//output_voltage_percent = output_voltage_percent; // tysieczne zamiast setnych (procent)
-
-	
 	if (output_voltage_percent > MAX_OUTPUT_VOLTAGE_DAGPERCENT)
 	output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
 	
@@ -223,8 +220,6 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, ui
 	
 	return output_voltage_percent;
 };
-
-
 
 
 void set_gate_state(channel_t * fan, gate_state_t pulse_state)
@@ -313,7 +308,7 @@ void update_modbus_registers(void)
 	modbus_registers[7].value = channel_array[1].setpoint/10;
 	modbus_registers[8].value = channel_array[2].setpoint/10;
 	modbus_registers[9].value = sensor_values.temperatures[0]/10;
-	//modbus_registers[10].value = sensor_values.temperatures[1]/10;
+	modbus_registers[10].value = sensor_values.temperatures[1]/10;
 	modbus_registers[11].value = sensor_values.temperatures[2]/10;
 	modbus_registers[12].value = sensor_values.temperatures[3]/10;
 	modbus_registers[13].value = sensor_values.temperatures[4]/10;
@@ -326,26 +321,25 @@ void update_app_data(void)
 	channel_array[0].work_state = modbus_registers[0].value;
 	channel_array[1].work_state = modbus_registers[1].value;
 	channel_array[2].work_state = modbus_registers[2].value;
-	/*
-	TODO: rozwi?zac problem z niedokladnym porównaniem np. 652 = (65*10)
-	if ((modbus_registers[3].value*10) != channel_array[0].output_voltage_percent) // if output value changed
+	
+	if ((modbus_registers[3].value) != channel_array[0].output_voltage_percent/10) // if output value changed
 	{
 		channel_array[0].work_state = WORK_STATE_MANUAL;
 		channel_array[0].output_voltage_percent = modbus_registers[3].value*10;
 	}
 	
-	if ((modbus_registers[4].value*10) != channel_array[1].output_voltage_percent) // if output value changed
+	if ((modbus_registers[4].value) != channel_array[1].output_voltage_percent/10) // if output value changed
 	{
 		channel_array[1].work_state = WORK_STATE_MANUAL;
 		channel_array[1].output_voltage_percent = modbus_registers[4].value*10;
 	}
 		
-	if ((modbus_registers[5].value*10) != channel_array[2].output_voltage_percent) // if output value changed
+	if ((modbus_registers[5].value) != channel_array[2].output_voltage_percent/10) // if output value changed
 	{
 		channel_array[2].work_state = WORK_STATE_MANUAL;
 		channel_array[2].output_voltage_percent = modbus_registers[5].value*10;
 	}
-		*/
+	
 	channel_array[0].setpoint = modbus_registers[6].value*10;
 	channel_array[1].setpoint = modbus_registers[7].value*10;
 	channel_array[2].setpoint = modbus_registers[8].value*10;
