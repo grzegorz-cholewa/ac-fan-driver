@@ -7,11 +7,14 @@
 #define MAX_REGISTERS_OFFSET (REGISTERS_NUMBER-1)
 #define MODBUS_FUNCTION_READ 0x03
 #define MODBUS_FUNCTION_WRITE 0x06
+#define FRAME_ERROR_LENGTH -1
+#define FRAME_ERROR_CRC -2
 
 /* STATIC FUNCTION DECLARATIONS */
 uint8_t get_high_byte(uint16_t two_byte);
 uint8_t get_low_byte(uint16_t two_byte);
-uint16_t get_short(uint8_t * first_byte_pointer);
+uint16_t get_short_little_endian(uint8_t * first_byte_pointer);
+uint16_t get_short_big_endian(uint8_t * first_byte_pointer);
 bool are_registers_valid(struct register_t * first_register, uint8_t registers_number);
 void send_info_response(struct register_t * first_register, uint8_t registers_number);
 void get_info_registers(struct register_t  * data, uint16_t data_length);
@@ -38,17 +41,28 @@ uint8_t get_low_byte(uint16_t two_byte)
 	return (two_byte & 0xFF); // LSB
 }
 
-uint16_t get_short(uint8_t * first_byte_pointer)
+uint16_t get_short_little_endian(uint8_t * first_byte_pointer) // first byte is low byte
+{
+	return (short) (*(first_byte_pointer+1) << 8 | *(first_byte_pointer));
+}
+
+uint16_t get_short_big_endian(uint8_t * first_byte_pointer) // first byte is high byte
 {
 	return (short) (*first_byte_pointer << 8 | *(first_byte_pointer+1));
 }
 
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 {
+	// check CRC
+	uint16_t crc_calculated = crc16_modbus(frame, frame_size-2);
+	uint16_t crc_received = get_short_little_endian(frame+frame_size-2);
+	if (crc_calculated != crc_received)
+	return FRAME_ERROR_CRC;
+	
 	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
 	{
-		uint16_t first_address_offset = get_short(frame+2);
-		uint16_t registers_number = get_short(frame+4);
+		uint16_t first_address_offset = get_short_big_endian(frame+2);
+		uint16_t registers_number = get_short_big_endian(frame+4);
 		
 		if (first_address_offset + registers_number-1 > MAX_REGISTERS_OFFSET)
 		return -1; // index out of range
@@ -62,11 +76,11 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	
 	else if ( memcmp(frame, control_request_head, sizeof(control_request_head)) == 0 )
 	{
-		uint16_t register_offset = get_short(frame+2);
-		int16_t value_to_set = get_short(frame+4);
+		uint16_t register_offset = get_short_big_endian(frame+2);
+		int16_t value_to_set = get_short_big_endian(frame+4);
 		
 		if (register_offset > MAX_REGISTERS_OFFSET)
-		return -1;
+		return FRAME_ERROR_LENGTH;
 		
 		if ( are_registers_valid(modbus_registers + register_offset, 1) )
 		{
