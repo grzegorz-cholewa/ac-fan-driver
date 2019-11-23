@@ -89,12 +89,12 @@ void drive_fans(void)
 {
 	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
-		if (channel_array[i].output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
+		if (channel_array[i].output_voltage_decpercent <= MIN_OUTPUT_VOLTAGE_DECPERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
 				
-		else if (channel_array[i].output_voltage_decpercent > MAX_OUTPUT_VOLTAGE_DECPERCENT)
+		else if (channel_array[i].output_voltage_decpercent >= MAX_OUTPUT_VOLTAGE_DECPERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
