@@ -30,7 +30,7 @@ typedef struct
 	const uint8_t temp_sensor_index;
 	uint8_t work_state;
 	int16_t setpoint;
-	int16_t output_voltage_percent;
+	int16_t output_voltage_decpercent;
 	uint32_t activation_delay_us; // time from zero-crossing to gate activation 
 	gate_state_t state;
 } channel_t;
@@ -46,9 +46,9 @@ uint8_t incoming_modbus_frame[RS_RX_BUFFER_SIZE];
 uint16_t modbus_frame_byte_counter = 0;
 static struct register_t modbus_registers[REGISTERS_NUMBER];
 static channel_t channel_array[OUTPUT_CHANNELS_NUMBER] = {
-	{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C*10, 0, 0, GATE_IDLE},
-	{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C*10, 0, 0, GATE_IDLE},
-	{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C*10, 0, 0, GATE_IDLE}
+	{FAN1_DRIVE_PIN, 0, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE},
+	{FAN2_DRIVE_PIN, 1, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE},
+	{FAN3_DRIVE_PIN, 2, WORK_STATE_AUTO, INIT_CHANNEL_SETPOINT_C, 0, 0, GATE_IDLE}
 };
 
 /* FUNCTION PROTOTYPES */
@@ -58,7 +58,7 @@ uint32_t get_gate_delay_us(uint16_t output_power); //uint16_t zamiast uint8_t
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
-int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t target_temperature, uint16_t debug_adc_read);
+int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t target_temperature);
 void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(void);
@@ -89,12 +89,12 @@ void drive_fans(void)
 {
 	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
-		if (channel_array[i].output_voltage_percent <= MIN_OUTPUT_VOLTAGE_DAGPERCENT)
+		if (channel_array[i].output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
 				
-		else if (channel_array[i].output_voltage_percent >= MAX_OUTPUT_VOLTAGE_DAGPERCENT)
+		else if (channel_array[i].output_voltage_decpercent > MAX_OUTPUT_VOLTAGE_DECPERCENT)
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
@@ -155,8 +155,7 @@ void led_blink(uint8_t blink_count, uint32_t on_off_cycle_period_ms)
 	}
 }
 
-
-int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, uint16_t debug_adc_read)
+int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint)
 {
 	int16_t error;
 	static int16_t integral_error[3] = {0, 0, 0};
@@ -167,30 +166,26 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint, ui
 	integral_error[channel] = integral_error[channel] + error;
 	
 	if ((error>0) && (integral_error[channel] <350*TIME_CONST))
-	integral_error[channel] = 350*TIME_CONST;
+		integral_error[channel] = 350*TIME_CONST;
 	
-	if (integral_error[channel] > 1000*TIME_CONST)
-	integral_error[channel] = 1000*TIME_CONST;
-	if (integral_error[channel] < 0)
-	integral_error[channel] = 0;
+	if (integral_error[channel] > INTEGRAL_ERROR_MAX)
+		integral_error[channel] = INTEGRAL_ERROR_MAX;
+	if (integral_error[channel] < INTEGRAL_ERROR_MIN)
+		integral_error[channel] = INTEGRAL_ERROR_MIN;
 
 	output_voltage_percent = PI_KP * error  + integral_error[channel]/TIME_CONST;
 	
-	if (output_voltage_percent > MAX_OUTPUT_VOLTAGE_DAGPERCENT)
-	output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_PERCENT;
+	if (output_voltage_percent > MAX_OUTPUT_VOLTAGE_DECPERCENT)
+		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_DECPERCENT;
 	
-	if (output_voltage_percent < MIN_OUTPUT_VOLTAGE_DAGPERCENT)
-	output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_PERCENT;
+	if (output_voltage_percent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
+		output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_DECPERCENT;
 	
-	//if (channel ==0)
-	//{
-	//	modbus_registers[10].value = integral_error[channel]/TIME_CONST/10;
-	//}
-	
-	/*
-	#ifdef MOCK_OUTPUT_VOLTAGE_REGULATION // FOR DEBUG ONLY
-	output_voltage_percent = debug_adc_read/8;
-	#endif
+	/* for debug - sending integral error over modbus
+	if (channel == 0)
+	{
+		modbus_registers[10].value = integral_error[channel]/TIME_CONST/10;
+	}
 	*/
 	
 	return output_voltage_percent;
@@ -239,11 +234,9 @@ void update_working_parameters(void)
 	{
 		if (channel_array[i].work_state == WORK_STATE_AUTO)
 		{
-			channel_array[i].output_voltage_percent = pi_regulator(i, sensor_values.temperatures[i],
-											channel_array[i].setpoint,
-											sensor_values.adc_values[i]);			
+			channel_array[i].output_voltage_decpercent = pi_regulator(i, sensor_values.temperatures[i], channel_array[i].setpoint);			
 		}
-		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].output_voltage_percent);
+		channel_array[i].activation_delay_us = get_gate_delay_us(channel_array[i].output_voltage_decpercent);
 	}
 }
 
@@ -276,18 +269,18 @@ void update_modbus_registers(void)
 	modbus_registers[0].value = channel_array[0].work_state;
 	modbus_registers[1].value = channel_array[1].work_state;
 	modbus_registers[2].value = channel_array[2].work_state;
-	modbus_registers[3].value = channel_array[0].output_voltage_percent/10;
-	modbus_registers[4].value = channel_array[1].output_voltage_percent/10;
-	modbus_registers[5].value = channel_array[2].output_voltage_percent/10;
-	modbus_registers[6].value = channel_array[0].setpoint/10;
-	modbus_registers[7].value = channel_array[1].setpoint/10;
-	modbus_registers[8].value = channel_array[2].setpoint/10;
-	modbus_registers[9].value = sensor_values.temperatures[0]/10;
-	modbus_registers[10].value = sensor_values.temperatures[1]/10;
-	modbus_registers[11].value = sensor_values.temperatures[2]/10;
-	modbus_registers[12].value = sensor_values.temperatures[3]/10;
-	modbus_registers[13].value = sensor_values.temperatures[4]/10;
-	modbus_registers[14].value = sensor_values.temperatures[5]/10;
+	modbus_registers[3].value = channel_array[0].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER;
+	modbus_registers[4].value = channel_array[1].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER;
+	modbus_registers[5].value = channel_array[2].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER;
+	modbus_registers[6].value = channel_array[0].setpoint/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[7].value = channel_array[1].setpoint/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[8].value = channel_array[2].setpoint/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[9].value = sensor_values.temperatures[0]/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[10].value = sensor_values.temperatures[1]/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[11].value = sensor_values.temperatures[2]/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[12].value = sensor_values.temperatures[3]/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[13].value = sensor_values.temperatures[4]/TEMPERATURE_PRECISION_MULTIPLIER;
+	modbus_registers[14].value = sensor_values.temperatures[5]/TEMPERATURE_PRECISION_MULTIPLIER;
 	modbus_registers[15].value = temperature_error_state;
 }
 
@@ -297,27 +290,27 @@ void update_app_data(void)
 	channel_array[1].work_state = modbus_registers[1].value;
 	channel_array[2].work_state = modbus_registers[2].value;
 	
-	if ((modbus_registers[3].value) != channel_array[0].output_voltage_percent/10) // if output value changed
+	if ((modbus_registers[3].value) != channel_array[0].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // if output value changed
 	{
 		channel_array[0].work_state = WORK_STATE_MANUAL;
-		channel_array[0].output_voltage_percent = modbus_registers[3].value*10;
+		channel_array[0].output_voltage_decpercent = modbus_registers[3].value*VOLTAGE_PRECISION_MULTIPLIER;
 	}
 	
-	if ((modbus_registers[4].value) != channel_array[1].output_voltage_percent/10) // if output value changed
+	if ((modbus_registers[4].value) != channel_array[1].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // if output value changed
 	{
 		channel_array[1].work_state = WORK_STATE_MANUAL;
-		channel_array[1].output_voltage_percent = modbus_registers[4].value*10;
+		channel_array[1].output_voltage_decpercent = modbus_registers[4].value*VOLTAGE_PRECISION_MULTIPLIER;
 	}
 		
-	if ((modbus_registers[5].value) != channel_array[2].output_voltage_percent/10) // if output value changed
+	if ((modbus_registers[5].value) != channel_array[2].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // if output value changed
 	{
 		channel_array[2].work_state = WORK_STATE_MANUAL;
-		channel_array[2].output_voltage_percent = modbus_registers[5].value*10;
+		channel_array[2].output_voltage_decpercent = modbus_registers[5].value*VOLTAGE_PRECISION_MULTIPLIER;
 	}
 	
-	channel_array[0].setpoint = modbus_registers[6].value*10;
-	channel_array[1].setpoint = modbus_registers[7].value*10;
-	channel_array[2].setpoint = modbus_registers[8].value*10;
+	channel_array[0].setpoint = modbus_registers[6].value*TEMPERATURE_PRECISION_MULTIPLIER;
+	channel_array[1].setpoint = modbus_registers[7].value*TEMPERATURE_PRECISION_MULTIPLIER;
+	channel_array[2].setpoint = modbus_registers[8].value*TEMPERATURE_PRECISION_MULTIPLIER;
 }
 
 /*uint8_t power_percent_to_voltage(int16_t power)
