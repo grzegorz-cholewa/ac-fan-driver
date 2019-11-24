@@ -159,7 +159,7 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint)
 {
 	int16_t error;
 	static int16_t integral_error[3] = {0, 0, 0};
-	int16_t output_voltage_percent; //TODO tysieczne zamiast setnych (procent)
+	int16_t output_voltage_decpercent;
 	
 	error = current_temp - setpoint;
 		
@@ -173,13 +173,13 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint)
 	if (integral_error[channel] < INTEGRAL_ERROR_MIN)
 		integral_error[channel] = INTEGRAL_ERROR_MIN;
 
-	output_voltage_percent = PI_KP * error  + integral_error[channel]/TIME_CONST;
+	output_voltage_decpercent = PI_KP * error  + integral_error[channel]/TIME_CONST;
 	
-	if (output_voltage_percent > MAX_OUTPUT_VOLTAGE_DECPERCENT)
-		output_voltage_percent = FULL_ON_OUTPUT_VOLTAGE_DECPERCENT;
+	if (output_voltage_decpercent > MAX_OUTPUT_VOLTAGE_DECPERCENT)
+		output_voltage_decpercent = FULL_ON_OUTPUT_VOLTAGE_DECPERCENT;
 	
-	if (output_voltage_percent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
-		output_voltage_percent = FULL_OFF_OUTPUT_VOLTAGE_DECPERCENT;
+	if (output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
+		output_voltage_decpercent = FULL_OFF_OUTPUT_VOLTAGE_DECPERCENT;
 	
 	/* for debug - sending integral error over modbus
 	if (channel == 0)
@@ -188,7 +188,7 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint)
 	}
 	*/
 	
-	return output_voltage_percent;
+	return output_voltage_decpercent;
 };
 
 
