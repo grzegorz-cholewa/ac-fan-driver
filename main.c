@@ -90,17 +90,17 @@ void drive_fans(void)
 	cli(); // enter critical section (disable interrupts)
 	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
-		if (channel_array[i].output_voltage_decpercent <= MIN_OUTPUT_VOLTAGE_DECPERCENT)
+		if (channel_array[i].output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
 		{
-			set_gate_state(&channel_array[i], GATE_IDLE);
+			set_gate_state(&channel_array[i], GATE_IDLE); // full off
 		}
 				
 		else if (channel_array[i].output_voltage_decpercent >= MAX_OUTPUT_VOLTAGE_DECPERCENT)
 		{
-			set_gate_state(&channel_array[i], GATE_ACTIVE);
+			set_gate_state(&channel_array[i], GATE_ACTIVE); // full on
 		}
 				
-		else if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us <= (channel_array[i].activation_delay_us + GATE_PULSE_MIN_TIME_US)) )
+		else if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us < (channel_array[i].activation_delay_us + GATE_PULSE_MIN_TIME_US)) )
 		{
 			set_gate_state(&channel_array[i], GATE_ACTIVE);
 		}
