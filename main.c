@@ -365,7 +365,8 @@ int main (void)
 /* ISR for zero-crossing detection */
 ISR (INT0_vect)
 {
-	gate_pulse_delay_counter_us = 0;
+	if (gate_pulse_delay_counter_us > HALF_SINE_PERIOD_US - 500)
+		gate_pulse_delay_counter_us = 0;
 }
 
 /* ISR for periodical timer overflow */
