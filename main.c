@@ -59,7 +59,6 @@ void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
 int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t target_temperature);
-void set_gate_state(channel_t * fan, gate_state_t pulse_state);
 void timer_start(uint32_t time_us);
 void update_working_parameters(void);
 void send_debug_info(void);
@@ -91,21 +90,21 @@ void drive_fans(void)
 	{
 		if (channel_array[i].output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
 		{
-			set_gate_state(&channel_array[i], GATE_IDLE); // full off
+			gpio_set_pin_high(channel_array[i].gate_pin); // inactive state, optotransistor is active low
 		}
 				
 		else if (channel_array[i].output_voltage_decpercent >= MAX_OUTPUT_VOLTAGE_DECPERCENT)
 		{
-			set_gate_state(&channel_array[i], GATE_ACTIVE); // full on
+			gpio_set_pin_low(channel_array[i].gate_pin); // active state, optotransistor is active low
 		}
 				
 		else if ( (gate_pulse_delay_counter_us >= channel_array[i].activation_delay_us) && (gate_pulse_delay_counter_us < (channel_array[i].activation_delay_us + GATE_PULSE_MIN_TIME_US)) )
 		{
-			set_gate_state(&channel_array[i], GATE_ACTIVE);
+			gpio_set_pin_low(channel_array[i].gate_pin); // active state, optotransistor is active low
 		}
 		else
 		{
-			set_gate_state(&channel_array[i], GATE_IDLE);
+			gpio_set_pin_high(channel_array[i].gate_pin); // inactive state, optotransistor is active low
 		}
 	}
 }
@@ -183,27 +182,6 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint)
 	
 	return output_voltage_decpercent;
 };
-
-
-void set_gate_state(channel_t * fan, gate_state_t pulse_state)
-{
-	if (fan->state == pulse_state)
-	{
-		return; // no state change
-	}
-	
-	fan->state = pulse_state;
-	
-	if (pulse_state == GATE_ACTIVE)
-	{
-		gpio_set_pin_low(fan->gate_pin); // optotransistor is active low
-	}
-	
-	if (pulse_state != GATE_ACTIVE)
-	{
-		gpio_set_pin_high(fan->gate_pin);
-	}
-}
 
 void timer_start(uint32_t time_us)
 {
