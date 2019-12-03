@@ -54,7 +54,7 @@ static channel_t channel_array[OUTPUT_CHANNELS_NUMBER] = {
 /* FUNCTION PROTOTYPES */
 int16_t check_temperatures(sensors_t * sensor_array);
 void drive_fans(void);
-uint32_t get_gate_delay_us(uint16_t output_power); //uint16_t zamiast uint8_t
+uint32_t get_gate_delay_us(uint16_t output_power);
 void gpio_init(void);
 void interrupt_init(void);
 void led_blink(uint8_t count, uint32_t on_off_cycle_period_ms);
@@ -112,7 +112,7 @@ void drive_fans(void)
 
 uint32_t get_gate_delay_us(uint16_t output_voltage_percent)
 {
-	uint16_t mean_voltage = (output_voltage_percent*23)/100; //output_voltage_percent * MAX_FAN_VOLTAGE / 1000; //power_percent_to_voltage(output_power);
+	uint16_t mean_voltage = (output_voltage_percent*23)/100; 
 	double activation_angle_rad = acos(mean_voltage/230.0); // acos function input is double, value from -1 to 1
 	uint32_t gate_delay = HALF_SINE_PERIOD_US*activation_angle_rad/(PI/2.0);
 	
@@ -180,13 +180,6 @@ int16_t pi_regulator(uint8_t channel, int16_t current_temp, int16_t setpoint)
 	
 	if (output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
 		output_voltage_decpercent = FULL_OFF_OUTPUT_VOLTAGE_DECPERCENT;
-	
-	/* for debug - sending integral error over modbus
-	if (channel == 0)
-	{
-		modbus_registers[10].value = integral_error[channel]/TIME_CONST/10;
-	}
-	*/
 	
 	return output_voltage_decpercent;
 };
@@ -327,12 +320,6 @@ void update_app_data(void)
 	}
 }
 
-/*uint8_t power_percent_to_voltage(int16_t power)
-{
-	return power * MAX_FAN_VOLTAGE /  100;
-}*/
-
-
 
 int main (void)
 {
@@ -424,12 +411,12 @@ ISR(USART0_RX_vect)
 			}
 			else
 			{
-				led_blink(1, 50);
+				led_blink(1, 50); // error indication: buffer full, cannot store to buffer
 			}
 		}
 		else
 		{
-			led_blink(2, 50);
+			led_blink(2, 50); // frame error indication
 		}
 	}	
 }
