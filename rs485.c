@@ -22,9 +22,7 @@ void rs485_init(void)
 	UBRR0H = (unsigned char)(MYUBRR>>8); // set baud rate
 	UBRR0L = (unsigned char)MYUBRR; // set baud rate
 	
-	//UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
-	usart_tx_enable(&USART0);
-	usart_rx_enable(&USART0);
+	UCSR0B = (1<<RXEN0)|(1<<TXEN0); // enable receiver and transmitter
 	
 	UCSR0C = (1<<USBS0)|(3<<UCSZ00); // set frame format: 8data, 2stop bit
 	
