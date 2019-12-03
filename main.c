@@ -87,7 +87,6 @@ int16_t check_temperatures(sensors_t * sensor_array)
 
 void drive_fans(void)
 {
-	cli(); // enter critical section (disable interrupts)
 	for (uint8_t i = 0; i < OUTPUT_CHANNELS_NUMBER; i++)
 	{
 		if (channel_array[i].output_voltage_decpercent < MIN_OUTPUT_VOLTAGE_DECPERCENT)
@@ -109,7 +108,6 @@ void drive_fans(void)
 			set_gate_state(&channel_array[i], GATE_IDLE);
 		}
 	}
-	sei();  // leave critical section (enable interrupts)
 }
 
 uint32_t get_gate_delay_us(uint16_t output_voltage_percent)
