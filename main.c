@@ -290,27 +290,41 @@ void update_app_data(void)
 	channel_array[1].work_state = modbus_registers[1].value;
 	channel_array[2].work_state = modbus_registers[2].value;
 	
-	if ((modbus_registers[3].value) != channel_array[0].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // if output value changed
+	if ((modbus_registers[3].value) != channel_array[0].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // check if value changed
 	{
 		channel_array[0].work_state = WORK_STATE_MANUAL;
 		channel_array[0].output_voltage_decpercent = modbus_registers[3].value*VOLTAGE_PRECISION_MULTIPLIER;
 	}
 	
-	if ((modbus_registers[4].value) != channel_array[1].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // if output value changed
+	if ((modbus_registers[4].value) != channel_array[1].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // check if value changed
 	{
 		channel_array[1].work_state = WORK_STATE_MANUAL;
 		channel_array[1].output_voltage_decpercent = modbus_registers[4].value*VOLTAGE_PRECISION_MULTIPLIER;
 	}
 		
-	if ((modbus_registers[5].value) != channel_array[2].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // if output value changed
+	if ((modbus_registers[5].value) != channel_array[2].output_voltage_decpercent/VOLTAGE_PRECISION_MULTIPLIER) // check if value changed
 	{
 		channel_array[2].work_state = WORK_STATE_MANUAL;
 		channel_array[2].output_voltage_decpercent = modbus_registers[5].value*VOLTAGE_PRECISION_MULTIPLIER;
 	}
 	
-	channel_array[0].setpoint = modbus_registers[6].value*TEMPERATURE_PRECISION_MULTIPLIER;
-	channel_array[1].setpoint = modbus_registers[7].value*TEMPERATURE_PRECISION_MULTIPLIER;
-	channel_array[2].setpoint = modbus_registers[8].value*TEMPERATURE_PRECISION_MULTIPLIER;
+	if (modbus_registers[6].value != (channel_array[0].setpoint/TEMPERATURE_PRECISION_MULTIPLIER)) // check if value changed
+	{
+		channel_array[0].work_state = WORK_STATE_AUTO;
+		channel_array[0].setpoint = modbus_registers[6].value*TEMPERATURE_PRECISION_MULTIPLIER;
+	}
+	
+	if (modbus_registers[7].value != (channel_array[1].setpoint/TEMPERATURE_PRECISION_MULTIPLIER)) // check if value changed
+	{
+		channel_array[1].work_state = WORK_STATE_AUTO;
+		channel_array[1].setpoint = modbus_registers[7].value*TEMPERATURE_PRECISION_MULTIPLIER;
+	}
+	
+	if (modbus_registers[8].value != (channel_array[2].setpoint/TEMPERATURE_PRECISION_MULTIPLIER)) // check if value changed
+	{
+		channel_array[2].work_state = WORK_STATE_AUTO;
+		channel_array[2].setpoint = modbus_registers[8].value*TEMPERATURE_PRECISION_MULTIPLIER;
+	}
 }
 
 /*uint8_t power_percent_to_voltage(int16_t power)
