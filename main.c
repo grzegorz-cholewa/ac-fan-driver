@@ -389,12 +389,12 @@ ISR(USART0_RX_vect)
 			}
 			else
 			{
-				led_blink(1, 50); // error indication: buffer full, cannot store to buffer
+				modbus_frame_byte_counter = 0;
 			}
 		}
 		else
 		{
-			led_blink(2, 50); // frame error indication
+
 		}
 	}	
 }

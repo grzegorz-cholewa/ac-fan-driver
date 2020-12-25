@@ -82,7 +82,7 @@ bool rs485_ready_to_send(void)
 
 bool rx_buffer_full(void)
 {
-	if (rx_buffer_pointer <= uart_rx_buffer + RS_RX_BUFFER_SIZE)
+	if (rx_buffer_pointer < uart_rx_buffer + RS_RX_BUFFER_SIZE)
 		return false;
 	else
 		return true;
