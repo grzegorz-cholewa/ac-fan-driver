@@ -315,7 +315,6 @@ int main (void)
 	{
 		if(update_parameter_timer_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
-			gpio_set_pin_low(LED_PIN);
 			update_working_parameters();
 			update_parameter_timer_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
