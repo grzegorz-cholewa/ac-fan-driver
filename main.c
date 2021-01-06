@@ -77,11 +77,9 @@ int16_t check_temperatures(sensors_t * sensor_array)
 		if ( (temperature > MAX_WORKING_TEMPERATURE) || (temperature < MIN_WORKING_TEMPERATURE) )
 		{
 			gpio_set_pin_high(ERROR_OUT_PIN);
-			gpio_set_pin_high(LED_PIN);
 			return TEMPERATURE_STATUS_ERROR;	
 		}
 	}
-	gpio_set_pin_low(LED_PIN);
 	return TEMPERATURE_STATUS_NO_ERROR;
 }
 
@@ -393,30 +391,30 @@ ISR(USART0_TX_vect)
 /* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
-	if ( (rx_time_interval_counter > MAX_TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
+	if (modbus_request_pending_flag == true)
 	{
-		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
-		modbus_request_pending_flag = true;
 		return;
 	}
-	rx_time_interval_counter = 0;
-	
-	if (modbus_request_pending_flag == false)
+	else
 	{
+		rx_time_interval_counter = 0;
+		
 		if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
 		{
-			if (rs485_get_byte_to_buffer())
+			if (rs485_get_byte_to_buffer() && (modbus_frame_byte_counter < RS_RX_BUFFER_SIZE))
 			{
 				modbus_frame_byte_counter++;
 			}
 			else
 			{
-				led_blink(1, 50); // error indication: buffer full, cannot store to buffer
+				LED_On(LED_PIN);
+				modbus_frame_byte_counter = 0;
 			}
 		}
 		else
 		{
-			led_blink(2, 50); // frame error indication
+			LED_On(LED_PIN);
+			modbus_frame_byte_counter = 0;
 		}
-	}	
+	}
 }

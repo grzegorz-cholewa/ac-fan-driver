@@ -53,14 +53,17 @@ uint16_t get_short_big_endian(uint8_t * first_byte_pointer) // first byte is hig
 
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 {
-	// check CRC
-	uint16_t crc_calculated = crc16_modbus(frame, frame_size-2);
-	uint16_t crc_received = get_short_little_endian(frame+frame_size-2);
-	if (crc_calculated != crc_received)
-	return FRAME_ERROR_CRC;
+	uint16_t crc_calculated;
+	uint16_t crc_received;
 	
 	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
 	{
+		// check CRC
+		crc_calculated = crc16_modbus(frame, frame_size-2);
+		crc_received = get_short_little_endian(frame+frame_size-2);
+		if (crc_calculated != crc_received)
+		return FRAME_ERROR_CRC;
+		
 		uint16_t first_address_offset = get_short_big_endian(frame+2);
 		uint16_t registers_number = get_short_big_endian(frame+4);
 		
@@ -76,6 +79,12 @@ int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 	
 	else if ( memcmp(frame, control_request_head, sizeof(control_request_head)) == 0 )
 	{
+		// check CRC
+		crc_calculated = crc16_modbus(frame, frame_size-2);
+		crc_received = get_short_little_endian(frame+frame_size-2);
+		if (crc_calculated != crc_received)
+		return FRAME_ERROR_CRC;
+		
 		uint16_t register_offset = get_short_big_endian(frame+2);
 		int16_t value_to_set = get_short_big_endian(frame+4);
 		
