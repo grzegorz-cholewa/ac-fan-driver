@@ -315,6 +315,7 @@ int main (void)
 	{
 		if(update_parameter_timer_counter_us >= WORKING_PARAMETERS_UPDATE_PERIOD_US)
 		{
+			gpio_set_pin_low(LED_PIN);
 			update_working_parameters();
 			update_parameter_timer_counter_us = 0;
 			#ifdef SEND_DEBUG_INFO_OVER_RS
@@ -371,19 +372,17 @@ ISR(USART0_TX_vect)
 /* ISR for UART RX interrupt */ 
 ISR(USART0_RX_vect)
 {
-	if ( (rx_time_interval_counter > MAX_TIME_BETWEEN_MODBUS_FRAMES_US) && (!rs485_rx_buffer_empty()) )
+	if (modbus_request_pending_flag == true)
 	{
-		rs485_get_frame(incoming_modbus_frame, RS_RX_BUFFER_SIZE);
-		modbus_request_pending_flag = true;
 		return;
 	}
-	rx_time_interval_counter = 0;
-	
-	if (modbus_request_pending_flag == false)
+	else
 	{
+		rx_time_interval_counter = 0;
+		
 		if ((UCSR1A & (UDRE0 | FE0 | DOR0))==0) // data register, frame error, overrun check
 		{
-			if (rs485_get_byte_to_buffer())
+			if (rs485_get_byte_to_buffer() && (modbus_frame_byte_counter < RS_RX_BUFFER_SIZE))
 			{
 				modbus_frame_byte_counter++;
 			}
@@ -394,7 +393,7 @@ ISR(USART0_RX_vect)
 		}
 		else
 		{
-
+			modbus_frame_byte_counter = 0;
 		}
-	}	
+	}
 }

@@ -54,10 +54,10 @@ uint16_t get_short_big_endian(uint8_t * first_byte_pointer) // first byte is hig
 int8_t modbus_process_frame(uint8_t * frame, uint16_t frame_size)
 {
 	// check CRC
-	uint16_t crc_calculated = crc16_modbus(frame, frame_size-2);
-	uint16_t crc_received = get_short_little_endian(frame+frame_size-2);
-	if (crc_calculated != crc_received)
-	return FRAME_ERROR_CRC;
+	//uint16_t crc_calculated = crc16_modbus(frame, frame_size-2);
+	//uint16_t crc_received = get_short_little_endian(frame+frame_size-2);
+	//if (crc_calculated != crc_received)
+	//return FRAME_ERROR_CRC;
 	
 	if (memcmp(frame, info_request_head, sizeof(control_request_head)) == 0)
 	{

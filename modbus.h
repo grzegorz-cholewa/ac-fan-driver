@@ -2,7 +2,7 @@
 #ifndef MODBUS_H_
 #define MODBUS_H_
 
-#define DEVICE_ID 0x01
+#define DEVICE_ID 0x02
 #define REGISTERS_NUMBER 16
 #define REQUEST_TYPE_READ 0
 #define REQUEST_TYPE_WRITE 1
